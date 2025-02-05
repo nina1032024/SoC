@@ -3,7 +3,7 @@
     {
       "name": "windows-gcc-x86",
       "includePath": [
-        "C:/Xilinx/Vitis_HLS/2021.1/include"
+        "C:/Xilinx/Vitis_HLS/2021.2/include"
       ],
       "compilerPath": "C:/MinGW/bin/gcc.exe",
       "cStandard": "${default}",
