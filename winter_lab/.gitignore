@@ -3,3 +3,4 @@
 *.ip_user_files
 *.sim
 *.xpr
+*.gitignore
