@@ -3,3 +3,7 @@
 *.ip_user_files
 *.sim
 *.xpr
+*.Xil
+*.jou
+*.log
+*.str
