@@ -3,9 +3,9 @@
 // Company:
 // Engineer:
 //
-// Create Date: 2025/02/07 14:54:58
+// Create Date: 2025/02/08 11:03:12
 // Design Name:
-// Module Name: test_uart_transmitter
+// Module Name: test_uart_transmitter_top
 // Project Name:
 // Target Devices:
 // Tool Versions:
@@ -21,19 +21,19 @@
 
 
 `timescale 1ns / 1ps
-`define DELAY_5 5
+`define DELAY_2 2//half period
 module test_uart_transmitter;
 
     reg clk;
     reg rst;
     integer data;
     reg start;
-    reg baud_rate_signal;
+    wire baud_rate_signal;
     wire uart_tx;
     reg [9:0] d;
     wire answer;
 
-    uart_transmitter u0(
+    uart_transmitter ut(
                          .clk(clk),
                          .rst(rst),
                          .data(data),
@@ -42,9 +42,13 @@ module test_uart_transmitter;
                          .uart_tx(uart_tx)
                      );
 
+    baud_rate_generator ub(
+                            .clk(clk),
+                            .rst(rst),
+                            .baud_rate_signal(baud_rate_signal)
+                        );
 
-
-    always #`DELAY_5 clk = ~clk;
+    always #`DELAY_2 clk = ~clk;
 
     integer i;
     integer error_cnt;
@@ -54,58 +58,51 @@ module test_uart_transmitter;
     initial
     begin
         error_cnt = 0;
+        //test 256 data(0000_0000 to 1111_1111)
         for (data = 0; data < 256; data = data + 1)
         begin
-            d= {1'b1, data[7:0], 1'b0};
-            //initialized inputs
+            d = {1'b1, data[7:0], 1'b0};
+            //initialize (first cycle)
             clk = 0;
             rst = 1;
             start = 0;
-            i= 0;
-            baud_rate_signal = 0;
+            i = 0;
 
-            //wait one cycle
-            #`DELAY_5;
-            #`DELAY_5;
+            // active data (second cycle)
+            #`DELAY_2;
+            #`DELAY_2;
             rst = 0;
 
-            //start transmitting
-            #`DELAY_5;
-            #`DELAY_5;
+            //start transmission (third cycle)
+            #`DELAY_2;
+            #`DELAY_2;
             start = 1;
-            baud_rate_signal = 0;
 
+            #`DELAY_2;
+            #`DELAY_2;
+            start = 0;
             //complete transmission
             for(i = 0; i < 20; i = i + 1)
             begin
-                #`DELAY_5;
-                #`DELAY_5;
+                @(posedge baud_rate_signal);
                 if((i>0) && (uart_tx !== answer))
                 begin
                     error_cnt = error_cnt + 1;
                 end
-                start = 0;
-                baud_rate_signal = 0;
-
-                #`DELAY_5;
-                #`DELAY_5;
-                if((i>0) && (uart_tx !== answer))
-                begin
-                    error_cnt = error_cnt + 1;
-                end
-                start = 0;
-                baud_rate_signal = 1;
             end
         end
         if (error_cnt > 0)
+        begin
             $display("%d error", error_cnt);
+        end
         else
+        begin
             $display("All testcases passed");
+        end
         $display("Testbench completed");
         $finish;
-
     end
+
 
 endmodule
 
-//baud_rate_signal = 1 increases the counter for autocheck

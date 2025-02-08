@@ -1,23 +1,24 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
-// Create Date: 2025/02/07 12:11:50
-// Design Name:
+// Company: 
+// Engineer: 
+// 
+// Create Date: 2025/02/07 14:54:42
+// Design Name: 
 // Module Name: uart_transmitter
-// Project Name:
-// Target Devices:
-// Tool Versions:
-// Description:
-//
-// Dependencies:
-//
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
 // Revision:
 // Revision 0.01 - File Created
 // Additional Comments:
-//
+// 
 //////////////////////////////////////////////////////////////////////////////////
+
 
 `define IDLE 0
 `define TRANSMIT 1
@@ -85,8 +86,8 @@ module uart_transmitter(
         endcase
     end
 
-    always@ (posedge clk or negedge rst) begin
-        if(~rst) begin
+    always@ (posedge clk or posedge rst) begin
+        if(rst) begin
             state <= `IDLE;
             bit_counter <= 0;
             uart_tx <= 1;
@@ -97,3 +98,4 @@ module uart_transmitter(
         end
     end
 endmodule
+
