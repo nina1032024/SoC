@@ -32,7 +32,7 @@ void binary2bcd_div(uint14 in_binary, uint16 *packed_bcd) {
 #pragma HLS INTERFACE ap_none port=in_binary
 #pragma HLS INTERFACE ap_none port=unpacked_bcd
 #pragma HLS INTERFACE ap_none port=packed_bcd
-#pragma HLS INTERFACE ap_ctrl_none port=return
+//#pragma HLS INTERFACE ap_ctrl_none port=return
 
 
 	uint14 a = in_binary;
