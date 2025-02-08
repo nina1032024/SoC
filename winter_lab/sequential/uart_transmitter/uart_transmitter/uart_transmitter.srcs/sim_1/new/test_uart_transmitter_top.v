@@ -53,8 +53,8 @@ module test_uart_transmitter;
     integer i;
     integer error_cnt;
 
-    assign answer = (i >= 10) ? 1 : d[i-1];
-
+    assign answer = ((i <= 0) ? 0 : ((i >= 10) ? 1 : d[i-1]));
+        
     initial
     begin
         error_cnt = 0;
