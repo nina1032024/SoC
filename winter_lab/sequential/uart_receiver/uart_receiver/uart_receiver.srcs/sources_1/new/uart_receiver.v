@@ -50,6 +50,7 @@ module uart_receiver(
                     end
                 end
                 next_bit_counter = 0;
+                next_valid_data = 0;
             end
 
             `RECEIVE: begin
