@@ -1,0 +1,153 @@
+//------------------------- data_RAM signals -----------------------------
+    assign data_EN = 1; // Since we only write in, no READ
+    assign data_WE = (ss_tready & ss_idle || init_addr != 6'd44)? 4'b1111 : 4'b0000;  // if ss_tlast not asserted, still can write
+    assign data_A  = (ap_ctrl[2] == 1 && init_addr != 6'd44)? init_addr : data_A_tmp; // data initialize before ap_start
+    assign data_Di = (ap_ctrl[2] == 1 && init_addr != 6'd44)? 0 : ss_tdata;
+    
+    // data RAM initialize
+    wire [5:0] next_init_addr;
+    reg  [5:0] init_addr;
+    
+    assign next_init_addr = (init_addr == 6'd44)? init_addr : init_addr + 6'd4;
+    
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n)
+            init_addr <= -6'd4;
+        else
+            init_addr <= next_init_addr;
+    end
+ // Stream-in X
+    assign ss_tready = (ap_ctrl[2] == 0 && init_addr == 6'd44 && k == 4'd0)? 1'b1 : 1'b0;           // write in data_RAM
+    //-------------- FSM for AXI-Stream input X (ss_tlast)-------------
+    reg ss_state;
+    reg next_ss_state;
+    reg ss_idle;
+    
+    always @* begin
+        case (ss_state)
+        `SS_IDLE:
+        begin
+            if (ss_tvalid && ss_tlast) begin
+                next_ss_state = `SS_DONE;
+                ss_idle = 1;
+            end
+            else begin
+                next_ss_state = `SS_IDLE;
+                ss_idle = 1;
+            end
+        end
+        `SS_DONE:
+        begin
+            if (ss_tvalid) begin
+                next_ss_state = `SS_IDLE;
+                ss_idle = 1;
+            end
+            else begin
+                next_ss_state = `SS_DONE;
+                ss_idle = 0;
+            end
+        end
+        default:
+        begin
+            if (ss_tvalid) begin
+                next_ss_state = `SS_IDLE;
+                ss_idle = 1;
+            end
+            else begin
+                next_ss_state = `SS_DONE;
+                ss_idle = 0;
+            end
+        end
+        endcase
+    end
+    
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n)
+            ss_state <= `SS_DONE;
+        else
+            ss_state <= next_ss_state;
+    end
+
+    //-------------------- Address Generator(Data) ------------------
+    // count x[t]
+    reg [3:0] x_cnt;
+    reg [3:0] x_cnt_tmp;
+    
+    always @* begin
+        if (ap_ctrl[2] == 1'b0) begin
+            if (k == 4'd10)              // k is tap_cnt (0~tap_num-1) now is 3
+                if (x_cnt != 4'd10)       
+                    x_cnt_tmp = x_cnt + 1'b1;
+                else
+                    x_cnt_tmp =  4'd0;
+            else
+                x_cnt_tmp = x_cnt;
+        end
+        else
+            x_cnt_tmp = 4'd0;
+    end
+    
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n)
+            x_cnt <= 4'd0;
+        else
+            x_cnt <= x_cnt_tmp;
+    end
+    
+    // count x[t-i]    
+    wire [5:0] data_A_tmp;
+    
+    assign data_A_tmp = (k <= x_cnt)? 4 * (x_cnt - k) : 4 * (11 + x_cnt - k);  //now is 4
+    
+//-------------------------- 32-bit FF --------------------------
+    reg  [(pDATA_WIDTH-1):0] data_ff;
+    
+    // FF store one value, the first x is from FF.
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n) begin
+            data_ff <= 32'd0;
+        end
+        else begin
+            data_ff <= ss_tdata;
+        end
+    end
+    
+//--------------- MUX to select X from FF or data_RAM -------------
+    wire [(pDATA_WIDTH-1):0] x_sel;
+    reg  mux_data_sel;
+    
+    // MUX to select x from FF or Data_RAM
+    always @* begin
+        if (k == 4'd0)
+            mux_data_sel = 1;
+        else
+            mux_data_sel = 0;
+    end
+    // output from MUX
+    assign x_sel = (mux_data_sel)? data_ff : data_Do;
+    
+    reg ARREADY;
+    reg AWREADY;
+    reg WREADY;
+    reg RVALID;
+    
+    // rvalid set by ARVALID, reset by RREADY
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n) begin
+            RVALID  <= 0;
+            ARREADY <= 0;
+            AWREADY <= 0;
+            WREADY  <= 0;
+        end else begin
+            RVALID  <= (arvalid | rvalid & ~rready)? 1 : 0;
+            ARREADY <= (arvalid)?                    1 : 0;
+            AWREADY <= (awvalid && wvalid)?          1 : 0;
+            WREADY  <= (awvalid && wvalid)?          1 : 0;
+        end   
+    end
+
+    assign awready = AWREADY;
+    assign arready = ARREADY; 
+    assign wready  = WREADY;
+    assign rvalid  = RVALID;
+    assign rdata   = (araddr[7:0] == 8'd0)? ap_ctrl : tap_Do; // if read 0x00, ap_ctrl

@@ -7,3 +7,7 @@
 *.jou
 *.log
 *.str
+*.pptx
+*.pdf
+
+py/

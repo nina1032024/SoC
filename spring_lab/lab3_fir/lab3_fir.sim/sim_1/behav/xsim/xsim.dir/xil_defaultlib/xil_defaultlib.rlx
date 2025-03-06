@@ -1,0 +1,8 @@
+0.7
+2020.2
+Oct 19 2021
+03:16:22
+D:/project/SoC/spring_lab/lab3_fir/lab03_material/hdl/fir.v,1741275267,verilog,,D:/project/SoC/spring_lab/lab3_fir/lab03_material/sim/tb.v,,fir,,,,,,,,
+D:/project/SoC/spring_lab/lab3_fir/lab03_material/sim/bram32.v,1741188577,verilog,,D:/project/SoC/spring_lab/lab3_fir/lab03_material/hdl/fir.v,,bram32,,,,,,,,
+D:/project/SoC/spring_lab/lab3_fir/lab03_material/sim/tb.v,1741239495,verilog,,,,fir_tb,,,,,,,,
+D:/project/SoC/spring_lab/lab3_fir/lab3_fir.sim/sim_1/behav/xsim/glbl.v,1634335545,verilog,,,,glbl,,,,,,,,
