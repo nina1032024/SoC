@@ -63,13 +63,14 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] data_Do;
 
 // test
-    wire [11:0] x_w_cnt;
-    wire [11:0] x_r_cnt;
-    wire [11:0] tap_cnt;
+    wire [4:0] x_w_cnt;
+    wire [4:0] x_r_cnt;
+    wire [4:0] tap_cnt;
     wire [(pDATA_WIDTH-1):0] x;
     wire [(pDATA_WIDTH-1):0] h;
     wire [(pDATA_WIDTH-1):0] m_test;
     wire [(pDATA_WIDTH-1):0] y;
+    wire [31:0] y_cnt;
 
     fir fir_DUT(
         .awready(awready),
@@ -116,7 +117,8 @@ module fir_tb
         .x(x),
         .h(h),
         .m(m_test),
-        .y(y)
+        .y(y),
+        .y_cnt(y_cnt)
 
         );
     

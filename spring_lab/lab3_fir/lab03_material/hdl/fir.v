@@ -9,8 +9,6 @@
 `define SS_DONE 1'b1
 
 
-
-
 module fir
     #(  parameter pADDR_WIDTH = 12,
         parameter pDATA_WIDTH = 32
@@ -41,7 +39,7 @@ module fir
          // AXI4-Stream master for y output, SM bus
          input   wire                     sm_tready,
          output  reg                      sm_tvalid,
-         output  wire [(pDATA_WIDTH-1):0] sm_tdata,
+         output  reg [(pDATA_WIDTH-1):0] sm_tdata,
          output  reg                      sm_tlast,
 
          // bram for tap RAM
@@ -61,13 +59,14 @@ module fir
          input   wire                     axis_clk,
          input   wire                     axis_rst_n,
 
-         output [11:0]x_w_cnt,
-         output [11:0]x_r_cnt,
-         output [11:0]tap_cnt,
+         output [4:0]x_w_cnt,
+         output [4:0]x_r_cnt,
+         output [4:0]tap_cnt,
          output [(pDATA_WIDTH-1):0] x,
          output [(pDATA_WIDTH-1):0] h,
          output [(pDATA_WIDTH-1):0] m,
-         output [(pDATA_WIDTH-1):0] y
+         output [(pDATA_WIDTH-1):0] y,
+         output [31:0] y_cnt
 
      );
 
@@ -180,7 +179,7 @@ module fir
 // bram signal for tap RAM
 
     reg [(pADDR_WIDTH-1):0] tap_A_w_r;
-    reg [11:0] tap_cnt;
+    reg [4:0] tap_cnt;
 
     // address generator
     always@(posedge axis_clk or negedge axis_rst_n) begin
@@ -229,8 +228,8 @@ module fir
 // bram for data RAM
 
     // address generator for newly stored data (up Counter)
-    reg  [11:0] x_w_cnt;
-    wire [11:0] x_w_cnt_tmp;
+    reg  [4:0] x_w_cnt;
+    wire [4:0] x_w_cnt_tmp;
 
     assign x_w_cnt_tmp = (tap_cnt == tap_num - 1) ? 
              ((x_w_cnt == tap_num - 1) ? 0 : (x_w_cnt + 1)) : 
@@ -248,8 +247,8 @@ module fir
     
 
     // address generator for reading out data (down Counter)
-    reg  [11:0] x_r_cnt;
-    wire [11:0] x_r_cnt_tmp;
+    reg  [4:0] x_r_cnt;
+    wire [4:0] x_r_cnt_tmp;
 
     assign x_r_cnt_tmp = (tap_cnt == tap_num - 1) ? 
              (x_w_cnt + 1) : 
@@ -291,7 +290,43 @@ module fir
         end
     end
 
-// axi-stream for y (sm state transition: sm_tvalid, sm_tdata, sm_tlast, sm_tready)
+// axi-stream for y 
+    // counter for y valid output
+    reg  [31:0] y_cnt;
+    wire [31:0] y_cnt_tmp;
 
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            y_cnt <= 0;
+        end else if(state == `IDLE) begin
+            y_cnt <= 0;
+        end else if(sm_tvalid && sm_tready) begin
+            y_cnt <= y_cnt + 1;
+        end else begin
+            y_cnt <= y_cnt;
+        end
+    end
 
+    // sm bus
+    wire sm_tdata_tmp;
+    wire sm_tvalid_tmp;
+
+    always@(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n || state == `IDLE) begin
+            sm_tdata <= 1'b0;
+            sm_tvalid <= 1'b0;
+        end else begin
+            sm_tdata  <= sm_tdata_tmp;
+            sm_tvalid <= sm_tvalid_tmp && (~sm_tvalid);
+        end
+    end    
+
+    assign sm_tdata_tmp = (sm_tvalid && sm_tready) ? y : 32'hxxxx;
+    assign sm_tvalid_tmp = ((y_cnt <= tap_num && tap_cnt == x_r_cnt + 2) || (y_cnt > tap_num && tap_cnt == 0)) ? 1'b1 : 1'b0;
+
+// tlast signal for x aand y
+
+// check data ram can write
+
+// ap_ctrl signal
 endmodule
