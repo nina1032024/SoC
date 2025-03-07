@@ -66,7 +66,8 @@ module fir
          output [(pDATA_WIDTH-1):0] h,
          output [(pDATA_WIDTH-1):0] m,
          output [(pDATA_WIDTH-1):0] y,
-         output [31:0] y_cnt
+         output [(pDATA_WIDTH-1):0] mul,
+         output [8:0] y_cnt
 
      );
 
@@ -273,6 +274,8 @@ module fir
 // core engine: convolution
     wire [(pDATA_WIDTH-1):0] x;
     wire [(pDATA_WIDTH-1):0] h;
+    wire [(pDATA_WIDTH-1):0] mul_tmp;
+    reg  [(pDATA_WIDTH-1):0] mul;
     reg  [(pDATA_WIDTH-1):0] y;
 
     // multipler
@@ -281,8 +284,10 @@ module fir
 
     // adder
     always@ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE || (ss_tvalid && ss_tready)) begin
-            y <= 0;
+        if(!axis_rst_n || state == `IDLE) begin
+            y <=  0;
+        end else if (tap_cnt == 1) begin
+            y <= (x * h);
         end else begin
             y <= y + (x * h);
         end
@@ -290,15 +295,15 @@ module fir
 
 // axi-stream for y 
     // counter for y valid output
-    reg  [31:0] y_cnt;
-    wire [31:0] y_cnt_tmp;
+    reg  [8:0] y_cnt;
+    wire [8:0] y_cnt_tmp;
 
     always @(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             y_cnt <= 0;
         end else if(state == `IDLE) begin
             y_cnt <= 0;
-        end else if(sm_tvalid && sm_tready) begin
+        end else if(tap_cnt == 1) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;
@@ -319,8 +324,8 @@ module fir
         end
     end    
 
-    assign sm_tdata_tmp = (ss_tready) ? y : 32'hxxxx;
-    assign sm_tvalid_tmp = ((tap_cnt == 0)) ? 1'b1 : 1'b0; //ignore first output y 
+    assign sm_tdata_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? y : 32'hxxxx;
+    assign sm_tvalid_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? 1'b1 : 1'b0; //ignore first output y 
     
     
 // tlast signal for x aand y

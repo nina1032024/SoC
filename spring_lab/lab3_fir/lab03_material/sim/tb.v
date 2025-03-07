@@ -70,7 +70,8 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] h;
     wire [(pDATA_WIDTH-1):0] m_test;
     wire [(pDATA_WIDTH-1):0] y;
-    wire [31:0] y_cnt;
+    wire [8:0] y_cnt;
+    wire [(pDATA_WIDTH-1):0] mul;
 
     fir fir_DUT(
         .awready(awready),
@@ -118,7 +119,8 @@ module fir_tb
         .h(h),
         .m(m_test),
         .y(y),
-        .y_cnt(y_cnt)
+        .y_cnt(y_cnt),
+        .mul(mul)
 
         );
     
@@ -301,7 +303,7 @@ module fir_tb
                 end
                 begin
                     while (!rvalid) @(posedge axis_clk);
-                    if( (rdata & mask) !== (exp_data & mask)) begin
+                    if((rdata & mask) !== (exp_data & mask)) begin
                         $display("ERROR: exp = %d, rdata = %d", exp_data, rdata);
                         error_coef <= 1;
                     end else begin
