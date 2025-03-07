@@ -236,9 +236,7 @@ module fir
              x_w_cnt;
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            x_w_cnt <= 0;
-        end else if(ap_ctrl[0] == 1) begin
+        if(!axis_rst_n || state == `IDLE) begin
             x_w_cnt <= tap_num - 1;
         end else begin 
             x_w_cnt <= x_w_cnt_tmp;
@@ -255,10 +253,10 @@ module fir
              ((x_r_cnt == 0) ? (tap_num - 1) : (x_r_cnt - 1));
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
-            x_r_cnt <= 0;
-        end else if(ap_ctrl[0] == 1) begin
+        if(!axis_rst_n) begin
             x_r_cnt <= tap_num - 1;
+        end else if(ap_ctrl[0] == 1) begin
+            x_r_cnt <= 0;
         end else begin
             x_r_cnt <= x_r_cnt_tmp;
         end
@@ -308,25 +306,26 @@ module fir
     end
 
     // sm bus
-    wire sm_tdata_tmp;
+    wire [(pDATA_WIDTH-1):0] sm_tdata_tmp;
     wire sm_tvalid_tmp;
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n || state == `IDLE) begin
-            sm_tdata <= 1'b0;
+            sm_tdata <= 32'hxxxx;
             sm_tvalid <= 1'b0;
         end else begin
             sm_tdata  <= sm_tdata_tmp;
-            sm_tvalid <= sm_tvalid_tmp && (~sm_tvalid);
+            sm_tvalid <= sm_tvalid_tmp && (~sm_tvalid) ;
         end
     end    
 
-    assign sm_tdata_tmp = (sm_tvalid && sm_tready) ? y : 32'hxxxx;
-    assign sm_tvalid_tmp = ((y_cnt <= tap_num && tap_cnt == x_r_cnt + 2) || (y_cnt > tap_num && tap_cnt == 0)) ? 1'b1 : 1'b0;
-
+    assign sm_tdata_tmp = (ss_tready) ? y : 32'hxxxx;
+    assign sm_tvalid_tmp = ((tap_cnt == 0)) ? 1'b1 : 1'b0; //ignore first output y 
+    
+    
 // tlast signal for x aand y
-
-// check data ram can write
-
+// need 32 cycle for adder process
+    // use extra counter y_cnt to label the place for output
+// no first cycle output
 // ap_ctrl signal
 endmodule
