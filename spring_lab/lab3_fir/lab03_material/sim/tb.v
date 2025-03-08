@@ -72,6 +72,7 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] y;
     wire [8:0] y_cnt;
     wire [(pDATA_WIDTH-1):0] mul;
+    wire [2:0] ap_ctrl;
 
     fir fir_DUT(
         .awready(awready),
@@ -120,7 +121,8 @@ module fir_tb
         .m(m_test),
         .y(y),
         .y_cnt(y_cnt),
-        .mul(mul)
+        .mul(mul),
+        .ap_ctrl (ap_ctrl)
 
         );
     

@@ -67,7 +67,8 @@ module fir
          output [(pDATA_WIDTH-1):0] m,
          output [(pDATA_WIDTH-1):0] y,
          output [(pDATA_WIDTH-1):0] mul,
-         output [8:0] y_cnt
+         output [8:0] y_cnt,
+         output [2:0] ap_ctrl
 
      );
 
@@ -95,7 +96,7 @@ module fir
     assign wready_tmp  = wvalid  & (~wready); 
     assign arready_tmp = arvalid & (~arready);
     assign rvalid_tmp  = rready  & (~rvalid); 
-    assign rdata = (rready) ? tap_Do : 12'hxxx;
+    assign rdata = (rvalid) ? ((araddr == 12'h00) ? ap_ctrl : tap_Do) : 12'hxxx;
 
 // configuration register
     // FSM for fir operation
@@ -118,7 +119,7 @@ module fir
                 end
             end
             `DONE : begin
-                if(araddr == 12'h00 && arvalid) begin                                 // read address 0x00
+                if(araddr == 12'h00 && arvalid && rvalid && rready && arready) begin                                 // read address 0x00
                     next_state = `IDLE;
                 end else begin
                     next_state = `DONE;
@@ -146,11 +147,8 @@ module fir
     reg [2:0] ap_ctrl;
 
     always @(*) begin
-        // ap_ctrl[0] = ap_start
-        ap_ctrl[0] = (awaddr == 12'h00 && wdata [0] == 1'b1 && awvalid && wvalid) ? 1'b1 : 1'b0;
-        // ap_ctrl[1] = ap_done
+        ap_ctrl[0] = (awaddr == 12'h00 && wdata [0] == 1'b1 && awvalid && wvalid && awready && wready) ? 1'b1 : 1'b0;
         ap_ctrl[1] = (state == `DONE) ? 1'b1 : 1'b0;
-        // ap_ctrl[2] = ap_idle
         ap_ctrl[2] = (state == `IDLE) ? 1'b1 : 1'b0;
     end
 
@@ -274,8 +272,6 @@ module fir
 // core engine: convolution
     wire [(pDATA_WIDTH-1):0] x;
     wire [(pDATA_WIDTH-1):0] h;
-    wire [(pDATA_WIDTH-1):0] mul_tmp;
-    reg  [(pDATA_WIDTH-1):0] mul;
     reg  [(pDATA_WIDTH-1):0] y;
 
     // multipler
@@ -299,14 +295,25 @@ module fir
     wire [8:0] y_cnt_tmp;
 
     always @(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            y_cnt <= 0;
-        end else if(state == `IDLE) begin
+        if(!axis_rst_n || state == `IDLE) begin
             y_cnt <= 0;
         end else if(tap_cnt == 1) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;
+        end
+    end
+
+    // tlast for y output transfer
+    wire sm_tlast_tmp;
+
+    assign sm_tlast_tmp = (y_cnt == data_length + 1) ? 1'b1 : 1'b0;
+
+    always@(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n || state == `IDLE) begin
+            sm_tlast <= 1'b0;
+        end else begin
+            sm_tlast <= sm_tlast_tmp;
         end
     end
 
@@ -326,11 +333,7 @@ module fir
 
     assign sm_tdata_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? y : 32'hxxxx;
     assign sm_tvalid_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? 1'b1 : 1'b0; //ignore first output y 
-    
-    
+
 // tlast signal for x aand y
-// need 32 cycle for adder process
-    // use extra counter y_cnt to label the place for output
-// no first cycle output
 // ap_ctrl signal
 endmodule
