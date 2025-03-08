@@ -1,13 +1,7 @@
 // fsm state
 `define IDLE 2'b00
-`define LOAD 2'b01
-`define CALC 2'b10
-`define DONE 2'b11
-
-// ss_state
-`define SS_IDLE 1'b0
-`define SS_DONE 1'b1
-
+`define CALC 2'b01
+`define DONE 2'b10
 
 module fir
     #(  parameter pADDR_WIDTH = 12,
@@ -57,19 +51,7 @@ module fir
          input   wire [(pDATA_WIDTH-1):0] data_Do,
 
          input   wire                     axis_clk,
-         input   wire                     axis_rst_n,
-
-         output [4:0]x_w_cnt,
-         output [4:0]x_r_cnt,
-         output [4:0]tap_cnt,
-         output [(pDATA_WIDTH-1):0] x,
-         output [(pDATA_WIDTH-1):0] h,
-         output [(pDATA_WIDTH-1):0] m,
-         output [(pDATA_WIDTH-1):0] y,
-         output [(pDATA_WIDTH-1):0] mul,
-         output [8:0] y_cnt,
-         output [2:0] ap_ctrl
-
+         input   wire                     axis_rst_n
      );
 
 // axi-lite interface : write channel, read channel
@@ -119,7 +101,7 @@ module fir
                 end
             end
             `DONE : begin
-                if(araddr == 12'h00 && arvalid && rvalid && rready && arready) begin                                 // read address 0x00
+                if(araddr == 12'h00 && arvalid && rvalid && rready && arready) begin  // read address 0x00
                     next_state = `IDLE;
                 end else begin
                     next_state = `DONE;
@@ -241,7 +223,6 @@ module fir
             x_w_cnt <= x_w_cnt_tmp;
         end
     end
-    
 
     // address generator for reading out data (down Counter)
     reg  [4:0] x_r_cnt;
@@ -333,7 +314,5 @@ module fir
 
     assign sm_tdata_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? y : 32'hxxxx;
     assign sm_tvalid_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? 1'b1 : 1'b0; //ignore first output y 
-
-// tlast signal for x aand y
-// ap_ctrl signal
+    
 endmodule

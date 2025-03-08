@@ -63,6 +63,7 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] data_Do;
 
 
+
     fir fir_DUT(
         .awready(awready),
         .wready(wready),
@@ -126,17 +127,17 @@ module fir_tb
     reg signed [(pDATA_WIDTH-1):0] Din_list[0:(`Data_Num-1)];
     reg signed [(pDATA_WIDTH-1):0] golden_list[0:(`Data_Num-1)];
     reg signed [(pDATA_WIDTH-1):0] coef[0:(`Coef_Num-1)]; // fill in coef 
-    `ifdef FSDB
-        initial begin
-            $fsdbDumpfile("fir.fsdb");
-            $fsdbDumpvars("+mda");
-        end
-    `elsif
+    // `ifdef FSDB
+    //     initial begin
+    //         $fsdbDumpfile("fir.fsdb");
+    //         $fsdbDumpvars("+mda");
+    //     end
+    // `elsif
         initial begin
             $dumpfile("fir.vcd");
             $dumpvars();
         end
-    `endif
+    // `endif
 
     initial begin
         axis_clk = 0;
@@ -253,17 +254,19 @@ module fir_tb
             wvalid  <= 1; wdata <= data;
             fork
                 begin
+                    @(posedge axis_clk);
                     while (!awready) @(posedge axis_clk);
                     awvalid<=0;
-		    awaddr<=0;
+                    awaddr<=0;
                 end
                 begin
+                    @(posedge axis_clk);
                     while (!wready) @(posedge axis_clk);
-                    wvalid<=0;                    
-                    wdata<=0;
+                    wvalid<=0;   
+                    wdata<=0;                 
+                
                 end
             join 
-		@(posedge axis_clk);
         end
     endtask
 
@@ -277,33 +280,38 @@ module fir_tb
             rready <= 1;
             fork 
                 begin
+                    @(posedge axis_clk);
                     while (!arready) @(posedge axis_clk);
                     arvalid<=0;
-		            araddr<=0;
+                    araddr<=0;
                 end
                 begin
                     while (!rvalid) @(posedge axis_clk);
-                    if((rdata & mask) !== (exp_data & mask)) begin
+                    if( (rdata & mask) !== (exp_data & mask)) begin
                         $display("ERROR: exp = %d, rdata = %d", exp_data, rdata);
                         error_coef <= 1;
                     end else begin
                         $display("OK: exp = %d, rdata = %d", exp_data, rdata);
                     end
                     rready<=0;                
+
                 end
             join 
-		@(posedge axis_clk);
         end
     endtask
+
+
 
     task axi_stream_master;
         input  signed [31:0] in1;
         begin
-            @(posedge axis_clk)
+            @(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
+            @(posedge axis_clk);
             while (!ss_tready) @(posedge axis_clk);
             ss_tvalid <= 0;
+            ss_tdata <=0;
         end
     endtask
 
@@ -313,6 +321,7 @@ module fir_tb
         begin
             @(posedge axis_clk) 
             sm_tready <= 1;
+            @(posedge axis_clk);
             while(!sm_tvalid) @(posedge axis_clk);
             sm_tready <=0;
             if (sm_tdata !== in2) begin
