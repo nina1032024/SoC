@@ -54,6 +54,8 @@ module fir
          input   wire                     axis_rst_n
      );
 
+    reg [2:0] ap_ctrl;
+
 // axi-lite interface : write channel, read channel
     wire awready_tmp;
     wire wready_tmp;
@@ -78,7 +80,7 @@ module fir
     assign wready_tmp  = wvalid  & (~wready); 
     assign arready_tmp = arvalid & (~arready);
     assign rvalid_tmp  = rready  & (~rvalid); 
-    assign rdata = (rvalid) ? ((araddr == 12'h00) ? ap_ctrl : tap_Do) : 12'hxxx;
+    assign rdata = (araddr == 12'h00) ? ap_ctrl : tap_Do;
 
 // configuration register
     // FSM for fir operation
@@ -94,7 +96,7 @@ module fir
                 end
             end
             `CALC : begin
-                if(sm_tvalid && sm_tlast) begin                                       // transfer last data of y
+                if(sm_tvalid && sm_tlast && ss_tlast) begin                            // transfer last data of y
                     next_state = `DONE;
                 end else begin
                     next_state = `CALC;
@@ -126,7 +128,6 @@ module fir
     end
 
     // 0x00: ap_ctrl = {ap_idle, ap_done, ap_start}
-    reg [2:0] ap_ctrl;
 
     always @(*) begin
         ap_ctrl[0] = (awaddr == 12'h00 && wdata [0] == 1'b1 && awvalid && wvalid && awready && wready) ? 1'b1 : 1'b0;
@@ -164,7 +165,9 @@ module fir
 
     // address generator
     always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state != `CALC) begin
+        if(!axis_rst_n) begin
+            tap_cnt <= tap_num;
+        end else if(state != `CALC)begin
             tap_cnt <= tap_num;
         end else begin
             tap_cnt <= (tap_cnt + 1 < tap_num) ? tap_cnt + 1 : 0;
@@ -178,7 +181,7 @@ module fir
         end else if ((araddr[11:0] >= 12'h80 && araddr[11:0] <= 12'hFF) && (arvalid && rready)) begin
             tap_A_w_r = araddr[6:0];
         end else begin
-            tap_A_w_r = 12'hxxx;
+            tap_A_w_r = 12'hFFF;
         end
     end
 
@@ -187,7 +190,7 @@ module fir
         tap_EN = 1'b1;
         tap_WE = ((awvalid && wvalid && awready && wready) &&
                   (awaddr[11:0] >= 12'h80 && awaddr[11:0] <= 12'hFF)) ? 4'b1111 : 4'b0000;
-        tap_Di = (awvalid && wvalid) ? wdata : 12'hxxx;
+        tap_Di = (awvalid && wvalid) ? wdata : 12'h00;
         tap_A = (state == `CALC) ? 4 * tap_cnt : tap_A_w_r;
     end
 
@@ -217,7 +220,9 @@ module fir
              x_w_cnt;
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
+        if(!axis_rst_n) begin
+            x_w_cnt <= tap_num - 1;
+        end else if (state == `IDLE) begin
             x_w_cnt <= tap_num - 1;
         end else begin 
             x_w_cnt <= x_w_cnt_tmp;
@@ -242,11 +247,11 @@ module fir
         end
     end
 
-    // bram signal
+    // bram signal (Note : initialize before axi stream input)
     always@* begin
         data_EN = 1'b1;
-        data_WE = (ss_tvalid && ss_tready) ? 4'b1111 : 4'b0000;
-        data_Di = (ss_tvalid) ? ss_tdata : 32'hxxxx;
+        data_WE = (state == `CALC && ss_tvalid && ss_tready || state == `IDLE) ? 4'b1111 : 4'b0000; 
+        data_Di = (state == `CALC && ss_tvalid && ss_tready) ? ss_tdata : 32'h00;
         data_A =  (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 * x_r_cnt;
     end
 
@@ -256,13 +261,15 @@ module fir
     reg  [(pDATA_WIDTH-1):0] y;
 
     // multipler
-    assign x = (data_Do === 32'hxxxx) ? 0 : data_Do;
-    assign h = (tap_Do === 32'hxxxx) ? 0 : tap_Do;
+    assign x = data_Do;
+    assign h = tap_Do;
 
     // adder
     always@ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
+        if(!axis_rst_n) begin
             y <=  0;
+        end else if(state == `IDLE) begin
+            y <= 0;
         end else if (tap_cnt == 1) begin
             y <= (x * h);
         end else begin
@@ -276,7 +283,9 @@ module fir
     wire [8:0] y_cnt_tmp;
 
     always @(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
+        if(!axis_rst_n) begin
+            y_cnt <= 0;
+        end else if(state == `IDLE) begin
             y_cnt <= 0;
         end else if(tap_cnt == 1) begin
             y_cnt <= y_cnt + 1;
@@ -291,7 +300,9 @@ module fir
     assign sm_tlast_tmp = (y_cnt == data_length + 1) ? 1'b1 : 1'b0;
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
+        if(!axis_rst_n) begin
+            sm_tlast <= 1'b0;
+        end else if(state == `IDLE) begin
             sm_tlast <= 1'b0;
         end else begin
             sm_tlast <= sm_tlast_tmp;
@@ -303,8 +314,11 @@ module fir
     wire sm_tvalid_tmp;
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n || state == `IDLE) begin
-            sm_tdata <= 32'hxxxx;
+        if(!axis_rst_n) begin
+            sm_tdata <= 32'h00;
+            sm_tvalid <= 1'b0;
+        end else if(state == `IDLE) begin
+            sm_tdata <= 32'h00;
             sm_tvalid <= 1'b0;
         end else begin
             sm_tdata  <= sm_tdata_tmp;
@@ -312,7 +326,7 @@ module fir
         end
     end    
 
-    assign sm_tdata_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? y : 32'hxxxx;
-    assign sm_tvalid_tmp = ((tap_cnt == 1) && (y_cnt >= 2)) ? 1'b1 : 1'b0; //ignore first output y 
+    assign sm_tdata_tmp = (sm_tready && ((tap_cnt == 1) && (y_cnt >= 2))) ? y : 32'h00;
+    assign sm_tvalid_tmp = (sm_tready && ((tap_cnt == 1) && (y_cnt >= 2))) ? 1'b1 : 1'b0; //ignore first output y 
     
 endmodule
