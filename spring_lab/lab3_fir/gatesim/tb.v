@@ -18,6 +18,10 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
+`define CYCLE     5        	       // Modify your clock period here
+`define SDFFILE   "../syn/netlist/fir_syn.sdf"      // Modify your sdf file name
+`include          "./bram32.v"
+
 `define Data_Num 500
 `define Coef_Num 20
 
@@ -126,6 +130,11 @@ module fir_tb
     reg signed [(pDATA_WIDTH-1):0] Din_list[0:(`Data_Num-1)];
     reg signed [(pDATA_WIDTH-1):0] golden_list[0:(`Data_Num-1)];
     reg signed [(pDATA_WIDTH-1):0] coef[0:(`Coef_Num-1)]; // fill in coef 
+
+    `ifdef SDF
+        initial $sdf_annotate(`SDFFILE, fir_DUT);
+    `endif
+
     `ifdef FSDB
         initial begin
             $fsdbDumpfile("fir.fsdb");
@@ -141,7 +150,7 @@ module fir_tb
     initial begin
         axis_clk = 0;
         forever begin
-            #5 axis_clk = (~axis_clk);
+            #`CYCLE axis_clk = (~axis_clk);
         end
     end
 

@@ -1,0 +1,43 @@
+ 
+****************************************
+Report : area
+Design : fir
+Version: R-2020.09-SP5
+Date   : Sun Mar  9 14:17:00 2025
+****************************************
+
+Library(s) Used:
+
+    slow (File: /usr/cadtool/ee5216/CBDK_TSMC90GUTM_Arm_f1.0/CIC/SynopsysDC/db/slow.db)
+
+Number of ports:                          330
+Number of nets:                          2673
+Number of cells:                         2287
+Number of combinational cells:           2117
+Number of sequential cells:               161
+Number of macros/black boxes:               0
+Number of buf/inv:                        443
+Number of references:                      82
+
+Combinational area:              12203.352106
+Buf/Inv area:                     2183.126432
+Noncombinational area:            2562.739201
+Macro/Black Box area:                0.000000
+Net Interconnect area:      undefined  (No wire load specified)
+
+Total cell area:                 14766.091307
+Total area:                 undefined
+
+Hierarchical area distribution
+------------------------------
+
+                                  Global cell area            Local cell area
+                                  -------------------  ----------------------------- 
+Hierarchical cell                 Absolute    Percent  Combi-      Noncombi-  Black-
+                                  Total       Total    national    national   boxes   Design
+--------------------------------  ----------  -------  ----------  ---------  ------  ---------
+fir                               14766.0913    100.0  12203.3521  2562.7392  0.0000  fir
+--------------------------------  ----------  -------  ----------  ---------  ------  ---------
+Total                                                  12203.3521  2562.7392  0.0000
+
+1
