@@ -5,11 +5,10 @@
 *.xpr
 *.Xil
 *.jou
-*.log
 *.str
 *.pptx
 *.pdf
 
 *temp*
-
+*vivado*
 py/
