@@ -258,11 +258,26 @@ module fir
 // core engine: convolution
     wire [(pDATA_WIDTH-1):0] x;
     wire [(pDATA_WIDTH-1):0] h;
+    wire [(pDATA_WIDTH-1):0] mul_tmp;
+    reg  [(pDATA_WIDTH-1):0] mul;
     reg  [(pDATA_WIDTH-1):0] y;
+    
 
     // multipler
     assign x = data_Do;
     assign h = tap_Do;
+
+    assign mul_tmp = x * h;
+
+    always@ (posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            mul <= 0;
+        end else if(state == `IDLE) begin
+            mul <= 0;
+        end else begin
+            mul <= mul_tmp;
+        end
+    end
 
     // adder
     always@ (posedge axis_clk or negedge axis_rst_n) begin
@@ -270,10 +285,10 @@ module fir
             y <=  0;
         end else if(state == `IDLE) begin
             y <= 0;
-        end else if (tap_cnt == 1) begin
-            y <= (x * h);
+        end else if (tap_cnt == 2) begin
+            y <= mul;
         end else begin
-            y <= y + (x * h);
+            y <= y + mul;
         end
     end
 
@@ -287,7 +302,7 @@ module fir
             y_cnt <= 0;
         end else if(state == `IDLE) begin
             y_cnt <= 0;
-        end else if(tap_cnt == 1) begin
+        end else if(tap_cnt == 2) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;
@@ -326,7 +341,7 @@ module fir
         end
     end    
 
-    assign sm_tdata_tmp = (sm_tready && ((tap_cnt == 1) && (y_cnt >= 2))) ? y : 32'h00;
-    assign sm_tvalid_tmp = (sm_tready && ((tap_cnt == 1) && (y_cnt >= 2))) ? 1'b1 : 1'b0; //ignore first output y 
+    assign sm_tdata_tmp = (sm_tready && ((tap_cnt == 2) && (y_cnt >= 2))) ? y : 32'h00;
+    assign sm_tvalid_tmp = (sm_tready && ((tap_cnt == 2) && (y_cnt >= 2))) ? 1'b1 : 1'b0; //ignore first output y 
     
 endmodule
