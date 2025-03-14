@@ -295,24 +295,22 @@ module fir_tb
         input [31:0]        mask;
         reg [2:0] random;
         begin
-            // random = $urandom_range(0, 2); 
-            // if(random == 0) begin
-            //     @(posedge axis_clk);
-            //     arvalid <= 1; araddr <= addr;    // arvalid -> rready
-            //     rready <= 0;
-            // end else if (random == 1) begin      // rready -> arvalid
-            //     @(posedge axis_clk);
-            //     rready <= 1;
-            //     @(posedge axis_clk); 
-            //     arvalid <= 1; araddr <= addr; 
-            // end else if (random ==2) begin       // arvalid, rready simultaneously
-            //     @(posedge axis_clk);
-            //     rready <= 1;
-            //     arvalid <= 1; araddr <= addr; 
-            // end
-            @(posedge axis_clk);
-            arvalid <= 1; araddr <= addr;    
-            rready <= 0;
+            random = $urandom_range(0, 2); 
+            if(random == 0) begin
+                @(posedge axis_clk);
+                arvalid <= 1; araddr <= addr;    // arvalid -> rready
+                rready <= 0;
+            end else if (random == 1) begin      // rready -> arvalid
+                @(posedge axis_clk);
+                rready <= 1;
+                @(posedge axis_clk); 
+                arvalid <= 1; araddr <= addr; 
+            end else if (random ==2) begin       // arvalid, rready simultaneously
+                @(posedge axis_clk);
+                rready <= 1;
+                arvalid <= 1; araddr <= addr; 
+            end
+           
             fork
                 begin
                     @(posedge axis_clk);
@@ -336,8 +334,6 @@ module fir_tb
             join
         end
     endtask
-
-
 
     task axi_stream_master;
         input  signed [31:0] in1;
