@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `define Data_Num 400
-`define Coef_Num 20
+`define Coef_Num 32
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -64,7 +64,7 @@ module fir_tb
 
 //test
     wire [(pADDR_WIDTH-1):0] araddr_latch;
-    wire [4:0] tap_cnt;
+    wire [8:0] tap_cnt;
     wire [4:0] x_w_cnt;
     wire [4:0] x_r_cnt;
     wire [(pDATA_WIDTH-1):0] x;
@@ -72,6 +72,8 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
     wire [(pDATA_WIDTH-1):0] mul;
     wire [(pDATA_WIDTH-1):0] y;
+    wire [8:0] y_cnt;
+
 
     fir fir_DUT(
         .awready(awready),
@@ -120,7 +122,8 @@ module fir_tb
         .h(h),
         .ss_tdata_latch(ss_tdata_latch),
         .mul(mul),
-        .y(y)
+        .y(y),
+        .y_cnt(y_cnt)
 
         );
     
@@ -356,23 +359,23 @@ module fir_tb
     task axi_stream_master;
         input  signed [31:0] in1;
         begin
-            for(j = 0; j< 30 ; j = j+1) begin
-                @(posedge axis_clk);
-            end
+            repeat (30)@(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
+
             @(posedge axis_clk);
             while (!ss_tready) @(posedge axis_clk);
             ss_tvalid <= 0;
             ss_tdata <=0;
         end
     endtask
+    
 
     task sm;
         input   signed [31:0] in2; // golden data
         input         [31:0] pcnt; // pattern count
         begin
-            @(posedge axis_clk) 
+            repeat (30) @(posedge axis_clk);
             sm_tready <= 1;
             @(posedge axis_clk);
             while(!sm_tvalid) @(posedge axis_clk);
