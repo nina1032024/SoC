@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `define Data_Num 400
-`define Coef_Num 32
+`define Coef_Num 20
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -64,6 +64,14 @@ module fir_tb
 
 //test
     wire [(pADDR_WIDTH-1):0] araddr_latch;
+    wire [4:0] tap_cnt;
+    wire [4:0] x_w_cnt;
+    wire [4:0] x_r_cnt;
+    wire [(pDATA_WIDTH-1):0] x;
+    wire [(pDATA_WIDTH-1):0] h;
+    wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
+    wire [(pDATA_WIDTH-1):0] mul;
+    wire [(pDATA_WIDTH-1):0] y;
 
     fir fir_DUT(
         .awready(awready),
@@ -104,7 +112,15 @@ module fir_tb
         .axis_clk(axis_clk),
         .axis_rst_n(axis_rst_n),
 
-        .araddr_latch(araddr_latch)
+        .araddr_latch(araddr_latch),
+        .tap_cnt(tap_cnt),
+        .x_w_cnt(x_w_cnt),
+        .x_r_cnt(x_r_cnt),
+        .x(x),
+        .h(h),
+        .ss_tdata_latch(ss_tdata_latch),
+        .mul(mul),
+        .y(y)
 
         );
     
@@ -249,7 +265,7 @@ module fir_tb
         $display(" Start FIR");
         @(posedge axis_clk) config_write(12'h00, 32'h0000_0001);    // ap_start = 1
         $display("----End the coefficient input(AXI-lite)----");
-        //$finish;
+
     end
 
 // axilite write channel
@@ -335,10 +351,14 @@ module fir_tb
         end
     endtask
 
+    integer j; 
+
     task axi_stream_master;
         input  signed [31:0] in1;
         begin
-            @(posedge axis_clk);
+            for(j = 0; j< 30 ; j = j+1) begin
+                @(posedge axis_clk);
+            end
             ss_tvalid <= 1;
             ss_tdata  <= in1;
             @(posedge axis_clk);

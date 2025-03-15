@@ -49,7 +49,16 @@ module fir
          input   wire                     axis_clk,
          input   wire                     axis_rst_n,
 
-         output [(pADDR_WIDTH-1):0] araddr_latch
+         output [(pADDR_WIDTH-1):0] araddr_latch,
+         output [4:0] tap_cnt,
+         output [4:0] x_w_cnt,
+         output [4:0] x_r_cnt,
+         output [(pDATA_WIDTH-1):0] x,
+         output [(pDATA_WIDTH-1):0] h,
+         output [(pDATA_WIDTH-1):0] ss_tdata_latch,
+         output [(pDATA_WIDTH-1):0] mul,
+         output [(pDATA_WIDTH-1):0] y
+ 
      );
 
     reg [2:0] ap_ctrl;
@@ -61,6 +70,9 @@ module fir
 
     localparam RIDLE  = 1'b0;
     localparam RVALID = 1'b1;
+
+    localparam SS_PROC = 1'b0;
+    localparam SS_DONE = 1'b1;
 
 // axi-lite interface : write channel, read channel
     wire awready_tmp;
@@ -231,10 +243,12 @@ module fir
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             tap_cnt <= tap_num;
-        end else if(state != CALC)begin
-            tap_cnt <= tap_num;
+        end else if(ss_tvalid && ss_tready) begin
+            tap_cnt <= 0;
+        end else if(ss_state == SS_PROC) begin
+            tap_cnt <=  tap_cnt + 1;
         end else begin
-            tap_cnt <= (tap_cnt + 1 < tap_num) ? tap_cnt + 1 : 0;
+            tap_cnt <= tap_num;
         end
     end
 
@@ -260,7 +274,43 @@ module fir
 
 // axi-stream for x input
     // ss bus
+    
+    // ss fsm : determine when to recieve data
+    reg ss_state, next_ss_state;
+
+    always@* begin
+        case(ss_state) 
+            SS_PROC: begin
+                if(tap_cnt == tap_num - 1) begin
+                    next_ss_state = SS_DONE;
+                end else begin
+                    next_ss_state = SS_PROC;
+                end
+            end
+            SS_DONE: begin
+                if(ss_tvalid && ss_tready) begin
+                    next_ss_state = SS_PROC;
+                end else begin
+                    next_ss_state = SS_DONE;
+                end
+            end
+            default : begin
+                next_ss_state = SS_DONE;
+            end
+        endcase
+    end
+
+    always@(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            ss_state <= SS_DONE;
+        end else begin
+            ss_state <= next_ss_state;
+        end
+    end 
+
     wire ss_tready_tmp;
+
+    assign ss_tready_tmp = (state == CALC && ss_state == SS_DONE) && ss_tvalid;
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
@@ -270,19 +320,13 @@ module fir
         end
     end    
 
-    assign ss_tready_tmp = (state == CALC) && ss_tvalid && (tap_cnt == tap_num - 1);
-
-
 // bram for data RAM
-    // 可以把沒有用到的dataRAM 用來當作latch
-    // 可以直接寫，不用先存再寫，但問題是要hold 住(費時)
-    // 用latch hold 住(用面積換時間)
 
     // address generator for newly stored data (up Counter)
     reg  [4:0] x_w_cnt;
     wire [4:0] x_w_cnt_tmp;
 
-    assign x_w_cnt_tmp = (tap_cnt == tap_num - 1) ? 
+    assign x_w_cnt_tmp = (ss_tready && ss_tvalid) ? 
              ((x_w_cnt == tap_num - 1) ? 0 : (x_w_cnt + 1)) : 
              x_w_cnt;
 
@@ -298,15 +342,25 @@ module fir
 
     // address generator for reading out data (down Counter)
     reg  [4:0] x_r_cnt;
-    wire [4:0] x_r_cnt_tmp;
+    reg  [4:0] x_r_cnt_tmp;
 
-    assign x_r_cnt_tmp = (tap_cnt == tap_num - 1) ? 
-             (x_w_cnt + 1) : 
-             ((x_r_cnt == 0) ? (tap_num - 1) : (x_r_cnt - 1));
+    always @* begin
+        if(ss_tready && ss_tvalid) begin
+            x_r_cnt_tmp = x_w_cnt_tmp;
+        end else if (ss_state == SS_PROC) begin
+            if(x_r_cnt == 0) begin
+                x_r_cnt_tmp=  tap_num - 1;
+            end else begin
+                x_r_cnt_tmp=  x_r_cnt - 1;
+            end
+        end else begin
+            x_r_cnt_tmp=  x_r_cnt;
+        end
+    end
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            x_r_cnt <= tap_num - 1;
+            x_r_cnt <= 0;
         end else if(ap_ctrl[0] == 1) begin
             x_r_cnt <= 0;
         end else begin
@@ -315,33 +369,51 @@ module fir
     end
 
     // bram signal (Note : initialize before axi stream input)
+    reg [(pDATA_WIDTH-1):0] ss_tdata_latch;
+
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            ss_tdata_latch <= 0;
+        end else begin
+            ss_tdata_latch <= (ss_tvalid && ss_tready) ? ss_tdata : ss_tdata_latch;
+        end
+    end
+
     always@* begin
         data_EN = 1'b1;
         data_WE = (state == CALC && ss_tvalid && ss_tready || state == IDLE) ? 4'b1111 : 4'b0000; 
-        data_Di = (state == CALC && ss_tvalid && ss_tready) ? ss_tdata : 32'h00;
-        data_A =  (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 * x_r_cnt;
+        data_Di = (ss_tvalid && ss_tready) ? ss_tdata_latch : 32'h00;
+        data_A =  (state == CALC) ? 4 * x_r_cnt : 0;
     end
 
 // core engine: convolution
-    wire [(pDATA_WIDTH-1):0] x;
-    wire [(pDATA_WIDTH-1):0] h;
+    wire [(pDATA_WIDTH-1):0] x_tmp;
+    wire [(pDATA_WIDTH-1):0] h_tmp;
+    reg [(pDATA_WIDTH-1):0] x;
+    reg [(pDATA_WIDTH-1):0] h;
     wire [(pDATA_WIDTH-1):0] mul_tmp;
     reg  [(pDATA_WIDTH-1):0] mul;
     reg  [(pDATA_WIDTH-1):0] y;
     
 
     // multipler
-    assign x = data_Do;
-    assign h = tap_Do;
+    assign x_tmp = (tap_cnt == 1) ? ss_tdata_latch : data_Do;
+    assign h_tmp = tap_Do;
 
     assign mul_tmp = x * h;
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
+            x <= 0;
+            h<= 0;
             mul <= 0;
         end else if(state == IDLE) begin
+            x <= 0;
+            h<= 0;
             mul <= 0;
         end else begin
+            x <= x_tmp;
+            h<= h_tmp;
             mul <= mul_tmp;
         end
     end
@@ -352,7 +424,7 @@ module fir
             y <=  0;
         end else if(state == IDLE) begin
             y <= 0;
-        end else if (tap_cnt == 2) begin
+        end else if (tap_cnt == 3) begin
             y <= mul;
         end else begin
             y <= y + mul;
@@ -360,6 +432,19 @@ module fir
     end
 
 // axi-stream for y 
+    reg [5:0] y_cal_cnt;
+    wire [5:0] y_cal_cnt_tmp;
+
+    always@(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            y_cal_cnt <= 0;
+        end else if (ss_tvalid && ss_tready) begin
+            
+        end
+    end
+
+    y_tap_cnt // summuing
+    y_out_cnt // how many y
     // counter for y valid output
     reg  [8:0] y_cnt;
     wire [8:0] y_cnt_tmp;
@@ -369,7 +454,7 @@ module fir
             y_cnt <= 0;
         end else if(state == IDLE) begin
             y_cnt <= 0;
-        end else if(tap_cnt == 2) begin
+        end else if(tap_cnt == 4) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;
@@ -408,8 +493,8 @@ module fir
         end
     end    
 
-    assign sm_tdata_tmp = (sm_tready && ((tap_cnt == 2) && (y_cnt >= 2))) ? y : 32'h00;
-    assign sm_tvalid_tmp = (sm_tready && ((tap_cnt == 2) && (y_cnt >= 2))) ? 1'b1 : 1'b0; //ignore first output y 
+    assign sm_tdata_tmp = (sm_tready && ((tap_cnt == 4) && (y_cnt >= 2))) ? y : 32'h00;
+    assign sm_tvalid_tmp = (sm_tready && ((tap_cnt == 4) && (y_cnt >= 2))) ? 1'b1 : 1'b0; //ignore first output y 
     
 endmodule
 
