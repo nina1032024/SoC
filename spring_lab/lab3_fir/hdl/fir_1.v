@@ -59,7 +59,9 @@ module fir
          output [(pDATA_WIDTH-1):0] mul,
          output [(pDATA_WIDTH-1):0] y,
          output [8:0] y_cnt,
-         output [1:0] data_state
+         output [1:0] data_state,
+         output [1:0] state,
+         output [2:0] ap_ctrl
  
      );
 
@@ -67,8 +69,8 @@ module fir
 
 // FSM states
     localparam IDLE = 2'b00;
-    localparam CALC = 2'b10;
-    localparam DONE = 2'b11;
+    localparam CALC = 2'b01;
+    localparam DONE = 2'b10;
 
     localparam RIDLE  = 1'b0;
     localparam RVALID = 1'b1;
@@ -76,12 +78,6 @@ module fir
     localparam DT_PROC = 2'b00;
     localparam DT_DONE = 2'b01;
     localparam DT_WAIT = 2'b10;
-
-    localparam SS_OFF = 1'b0;
-    localparam SS_RECEIVE = 1'b1;
-
-    localparam SM_OFF = 1'b0;
-    localparam SM_TRANSFER = 1'b1;
 
 // axi-lite interface : write channel, read channel
     wire awready_tmp;
@@ -154,11 +150,11 @@ module fir
 
     // read data contains read data_len, tap_num, coefficient, state
     always @* begin
-        if(state == IDLE && rvalid) begin
+        if(rvalid) begin
             if(araddr_latch == 12'h00) rdata = ap_ctrl;
-            else if (araddr_latch == 12'h10) rdata = data_length;
-            else if (araddr_latch == 12'h14) rdata = tap_num;
-            else if (araddr_latch >=  12'h80 && araddr_latch <= 12'hFF) rdata = tap_Do;
+            else if (araddr_latch == 12'h10) rdata = (state == IDLE) ? data_length : 12'hFFFFFFFF;
+            else if (araddr_latch == 12'h14) rdata = (state == IDLE) ? tap_num : 12'hFFFFFFFF;
+            else if (araddr_latch >=  12'h80 && araddr_latch <= 12'hFF) rdata = (state == IDLE) ? tap_Do : 12'hFFFFFFFF;
             else rdata = 12'hFFFFFFFF;
         end else begin
             rdata = 12'hFFFFFFFF;
@@ -179,14 +175,14 @@ module fir
                 end
             end
             CALC : begin
-                if(sm_tvalid && sm_tlast) begin                                       // transfer last data of y
+                if(sm_tlast) begin                                       // transfer last data of y
                     next_state = DONE;
                 end else begin
                     next_state = CALC;
                 end
             end
             DONE : begin
-                if(araddr == 12'h00 && arvalid && rvalid && rready && arready) begin  // read address 0x00
+                if(araddr == 12'h00 && rready && arready) begin  // read address 0x00
                     next_state = IDLE;
                 end else begin
                     next_state = DONE;
@@ -211,8 +207,6 @@ module fir
     end
 
     // 0x00: ap_ctrl = {ap_idle, ap_done, ap_start}
-
-    // 要用sequential 
     always @(posedge axis_clk or negedge axis_rst_n) begin
 
         ap_ctrl[0] = (awaddr == 12'h00 && wdata [0] == 1'b1 && awvalid && wvalid && awready && wready) ? 1'b1 : 1'b0;
@@ -237,8 +231,8 @@ module fir
         end
     end
 
-    assign data_length_tmp = (awaddr == 12'h10 && awvalid && wvalid && awready && wready) ? wdata : data_length;
-    assign tap_num_tmp     = (awaddr == 12'h14 && awvalid && wvalid && awready && wready) ? wdata : tap_num;
+    assign data_length_tmp = (state == IDLE && awaddr == 12'h10 && awvalid && wvalid && awready && wready) ? wdata : data_length;
+    assign tap_num_tmp     = (state == IDLE && awaddr == 12'h14 && awvalid && wvalid && awready && wready) ? wdata : tap_num;
 
     // 0x80-FF: tap parameters
     // process tap parameters in tap_ram
@@ -342,50 +336,6 @@ module fir
             ss_tready <= next_ss_tready;
         end
     end 
-
-    // ss fsm
-    // reg ss_state, next_ss_state;
-    // reg next_ss_tready;
-
-    // always@* begin
-    //     case(ss_state) 
-    //         SS_OFF: begin
-    //             if(sm_tvalid && sm_tready) begin
-    //                 next_ss_state = SS_RECEIVE;
-    //                 next_ss_tready = 1;
-    //             end else begin
-    //                 next_ss_state = SS_OFF;
-    //                 next_ss_tready = 0;
-    //             end
-    //         end
-    //         SS_RECEIVE: begin
-    //             if(ss_tvalid) begin
-    //                 next_ss_state = SS_OFF;
-    //                 next_ss_tready = 0;
-    //             end else begin
-    //                 next_ss_state = SS_RECEIVE;
-    //                 next_ss_tready = 1;
-    //             end
-    //         end
-    //         default: begin
-    //             next_ss_state = SS_OFF;
-    //             next_ss_tready = 0;
-    //         end
-    //     endcase
-    // end
-  
-    // always@(posedge axis_clk or negedge axis_rst_n) begin
-    //     if(!axis_rst_n) begin
-    //         ss_tready <= 1'b0;
-    //         ss_state <= SS_OFF;
-    //     end else if(state == IDLE) begin
-    //         ss_tready <= 1'b0;
-    //         ss_state <= SS_OFF;
-    //     end else begin
-    //         ss_tready <= next_ss_tready;
-    //         ss_state <= next_ss_state;
-    //     end
-    // end    
 
 // bram for data RAM
 
@@ -515,51 +465,6 @@ module fir
         end
     end
 
-// axi-stream y output
-    // sm fsm
-    // reg [1:0] sm_state, next_sm_state;
-    
-
-    // always@* begin
-    //     case(sm_state) 
-    //         SM_OFF: begin
-    //             if(tap_cnt == (4 + (tap_num - 1))) begin
-    //                 next_sm_state = SM_TRANSFER;
-    //                 next_sm_tvalid = 1;
-    //             end else begin
-    //                 next_sm_state = SM_OFF;
-    //                 next_sm_tvalid = 0;
-    //             end
-    //         end
-    //         SM_TRANSFER: begin
-    //             if(sm_tready) begin
-    //                 next_sm_state = SM_OFF;
-    //                 next_sm_tvalid = 0;
-    //             end else begin
-    //                 next_sm_state = SM_TRANSFER;
-    //                 next_sm_tvalid = 1;
-    //             end
-    //         end
-    //         default: begin
-    //             next_sm_state = SM_OFF;
-    //             next_sm_tvalid = 0;
-    //         end
-    //     endcase
-    // end
-  
-    // always@(posedge axis_clk or negedge axis_rst_n) begin
-    //     if(!axis_rst_n) begin
-    //         sm_tvalid <= 1'b0;
-    //         sm_state <= SM_OFF;
-    //     end else if (state == IDLE) begin
-    //         sm_tvalid <= 1'b0;
-    //         sm_state <= SM_OFF;
-    //     end else begin
-    //         sm_tvalid <= next_sm_tvalid;
-    //         sm_state <= next_sm_state;
-    //     end
-    // end    
-
     // sm data
     wire [(pDATA_WIDTH-1):0] sm_tdata_tmp;
 
@@ -581,7 +486,7 @@ module fir
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             y_cnt <= 0;
-        end else if (tap_cnt == (4 + (tap_num - 1))) begin
+        end else if (sm_tvalid && sm_tready) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;

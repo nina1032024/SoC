@@ -74,6 +74,8 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] y;
     wire [8:0] y_cnt;
     wire [1:0] data_state;
+    wire [1:0] state;
+    wire [2:0] ap_ctrl;
 
 
     fir fir_DUT(
@@ -125,7 +127,9 @@ module fir_tb
         .mul(mul),
         .y(y),
         .y_cnt(y_cnt),
-        .data_state(data_state)
+        .data_state(data_state),
+        .state(state),
+        .ap_ctrl(ap_ctrl)
 
         );
     
@@ -205,8 +209,12 @@ module fir_tb
         $display("----Start the data input(AXI-Stream)----");
         for(i=0;i<(data_length-1);i=i+1) begin
             ss_tlast = 0; axi_stream_master(Din_list[i]);
+            // config_write(12'h10, 10); // write data_length
+            // config_write(12'h14, 10); // write tap_length
+            // // //config_read_check(12'h10, data_length, 32'hffffffff); // check if data_length dont change
+            // // //config_read_check(12'h14, coef_length, 32'hffffffff); // check if tap_length dont change
         end
-        config_read_check(12'h00, 32'h00, 32'h0000_0002); // check idle = 0
+        config_read_check(12'h00, 32'h00, 32'h0000_0002); // check done = 0
         ss_tlast = 1; axi_stream_master(Din_list[(`Data_Num - 1)]);
         $display("------End the data input(AXI-Stream)------");
     end
@@ -361,7 +369,7 @@ module fir_tb
     task axi_stream_master;
         input  signed [31:0] in1;
         begin
-            repeat (1)@(posedge axis_clk);
+            repeat (30)@(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
 
