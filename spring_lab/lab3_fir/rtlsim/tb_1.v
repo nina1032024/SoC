@@ -18,8 +18,8 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define Data_Num 400
-`define Coef_Num 20
+`define Data_Num 500
+`define Coef_Num 17
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -187,9 +187,9 @@ module fir_tb
     initial begin
         data_length = 0;
         coef_length = 0;
-        Din = $fopen("x.dat","r");
-        golden = $fopen("y.dat","r");
-	    coef_data= $fopen("coef.dat","r");
+        Din = $fopen("x0.dat","r");
+        golden = $fopen("y0.dat","r");
+	    coef_data= $fopen("coef0.dat","r");
 
         for(m=0;m< `Data_Num ;m=m+1) begin
             input_data = $fscanf(Din,"%d", Din_list[m]);
@@ -215,7 +215,7 @@ module fir_tb
             config_write(12'h80, -3); //invalid write coef
             config_read_check(12'h10, data_length, 32'hffffffff); // check data_length
             config_read_check(12'h14, coef_length, 32'hffffffff); // check tap_num
-            config_read_check(12'h80, 32'hffffffff, 32'hffffffff); // check coef
+            config_read_check(12'hFC, 32'hffffffff, 32'hffffffff); // check coef
 
             // check state
             config_read_check(12'h00, 32'h00, 32'h0000_0001); // check start = 0;
