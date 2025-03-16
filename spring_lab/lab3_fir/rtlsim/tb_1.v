@@ -63,19 +63,19 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] data_Do;
 
 //test
-    wire [(pADDR_WIDTH-1):0] araddr_latch;
-    wire [8:0] tap_cnt;
-    wire [4:0] x_w_cnt;
-    wire [4:0] x_r_cnt;
-    wire [(pDATA_WIDTH-1):0] x;
-    wire [(pDATA_WIDTH-1):0] h;
-    wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
-    wire [(pDATA_WIDTH-1):0] mul;
-    wire [(pDATA_WIDTH-1):0] y;
-    wire [8:0] y_cnt;
-    wire [1:0] data_state;
-    wire [1:0] state;
-    wire [2:0] ap_ctrl;
+    // wire [(pADDR_WIDTH-1):0] araddr_latch;
+    // wire [8:0] tap_cnt;
+    // wire [4:0] x_w_cnt;
+    // wire [4:0] x_r_cnt;
+    // wire [(pDATA_WIDTH-1):0] x;
+    // wire [(pDATA_WIDTH-1):0] h;
+    // wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
+    // wire [(pDATA_WIDTH-1):0] mul;
+    // wire [(pDATA_WIDTH-1):0] y;
+    // wire [8:0] y_cnt;
+    // wire [1:0] data_state;
+    // wire [1:0] state;
+    // wire [2:0] ap_ctrl;
 
 
     fir fir_DUT(
@@ -115,21 +115,21 @@ module fir_tb
         .data_Do(data_Do),
 
         .axis_clk(axis_clk),
-        .axis_rst_n(axis_rst_n),
+        .axis_rst_n(axis_rst_n)
 
-        .araddr_latch(araddr_latch),
-        .tap_cnt(tap_cnt),
-        .x_w_cnt(x_w_cnt),
-        .x_r_cnt(x_r_cnt),
-        .x(x),
-        .h(h),
-        .ss_tdata_latch(ss_tdata_latch),
-        .mul(mul),
-        .y(y),
-        .y_cnt(y_cnt),
-        .data_state(data_state),
-        .state(state),
-        .ap_ctrl(ap_ctrl)
+        // .araddr_latch(araddr_latch),
+        // .tap_cnt(tap_cnt),
+        // .x_w_cnt(x_w_cnt),
+        // .x_r_cnt(x_r_cnt),
+        // .x(x),
+        // .h(h),
+        // .ss_tdata_latch(ss_tdata_latch),
+        // .mul(mul),
+        // .y(y),
+        // .y_cnt(y_cnt),
+        // .data_state(data_state),
+        // .state(state),
+        // .ap_ctrl(ap_ctrl)
 
         );
     

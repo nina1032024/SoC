@@ -47,21 +47,21 @@ module fir
          input   wire [(pDATA_WIDTH-1):0] data_Do,
 
          input   wire                     axis_clk,
-         input   wire                     axis_rst_n,
+         input   wire                     axis_rst_n
 
-         output [(pADDR_WIDTH-1):0] araddr_latch,
-         output [8:0] tap_cnt,
-         output [4:0] x_w_cnt,
-         output [4:0] x_r_cnt,
-         output [(pDATA_WIDTH-1):0] x,
-         output [(pDATA_WIDTH-1):0] h,
-         output [(pDATA_WIDTH-1):0] ss_tdata_latch,
-         output [(pDATA_WIDTH-1):0] mul,
-         output [(pDATA_WIDTH-1):0] y,
-         output [8:0] y_cnt,
-         output [1:0] data_state,
-         output [1:0] state,
-         output [2:0] ap_ctrl
+        //  output [(pADDR_WIDTH-1):0] araddr_latch,
+        //  output [8:0] tap_cnt,
+        //  output [4:0] x_w_cnt,
+        //  output [4:0] x_r_cnt,
+        //  output [(pDATA_WIDTH-1):0] x,
+        //  output [(pDATA_WIDTH-1):0] h,
+        //  output [(pDATA_WIDTH-1):0] ss_tdata_latch,
+        //  output [(pDATA_WIDTH-1):0] mul,
+        //  output [(pDATA_WIDTH-1):0] y,
+        //  output [8:0] y_cnt,
+        //  output [1:0] data_state,
+        //  output [1:0] state,
+        //  output [2:0] ap_ctrl
  
      );
 
@@ -78,6 +78,12 @@ module fir
     localparam DT_WAIT = 2'b00;
     localparam DT_PROC = 2'b01;
     localparam DT_DONE = 2'b10;
+
+    reg [1:0] state, next_state;
+    reg  [31:0] data_length;
+    wire [31:0] data_length_tmp;
+    reg  [31:0] tap_num;
+    wire [31:0] tap_num_tmp;
 
 // axi-lite interface : write channel, read channel
     wire awready_tmp;
@@ -155,15 +161,15 @@ module fir
             else if (araddr_latch == 12'h10) rdata = data_length;
             else if (araddr_latch == 12'h14) rdata = tap_num;
             else if (araddr_latch >=  12'h80 && araddr_latch <= 12'hFF) rdata = (state == IDLE) ? tap_Do : 32'hffffffff;
-            else rdata = 12'hFFFFFFFF;
+            else rdata = 32'hFFFFFFFF;
         end else begin
-            rdata = 12'hFFFFFFFF;
+            rdata = 32'hFFFFFFFF;
         end
     end
 
 // configuration register
     // FSM for fir operation
-    reg [1:0] state, next_state;
+    
 
     always@* begin
         case(state)
@@ -216,10 +222,7 @@ module fir
 
     // 0x10-14: data_length
     // 0x14-18: tap_num
-    reg  [8:0] data_length;
-    wire [31:0] data_length_tmp;
-    reg  [31:0] tap_num;
-    wire [31:0] tap_num_tmp;
+    
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
