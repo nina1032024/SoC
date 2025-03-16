@@ -75,9 +75,9 @@ module fir
     localparam RIDLE  = 1'b0;
     localparam RVALID = 1'b1;
 
-    localparam DT_PROC = 2'b00;
-    localparam DT_DONE = 2'b01;
-    localparam DT_WAIT = 2'b10;
+    localparam DT_WAIT = 2'b00;
+    localparam DT_PROC = 2'b01;
+    localparam DT_DONE = 2'b10;
 
 // axi-lite interface : write channel, read channel
     wire awready_tmp;
@@ -152,9 +152,9 @@ module fir
     always @* begin
         if(rvalid) begin
             if(araddr_latch == 12'h00) rdata = ap_ctrl;
-            else if (araddr_latch == 12'h10) rdata = (state == IDLE) ? data_length : 12'hFFFFFFFF;
-            else if (araddr_latch == 12'h14) rdata = (state == IDLE) ? tap_num : 12'hFFFFFFFF;
-            else if (araddr_latch >=  12'h80 && araddr_latch <= 12'hFF) rdata = (state == IDLE) ? tap_Do : 12'hFFFFFFFF;
+            else if (araddr_latch == 12'h10) rdata = data_length;
+            else if (araddr_latch == 12'h14) rdata = tap_num;
+            else if (araddr_latch >=  12'h80 && araddr_latch <= 12'hFF) rdata = (state == IDLE) ? tap_Do : 32'hffffffff;
             else rdata = 12'hFFFFFFFF;
         end else begin
             rdata = 12'hFFFFFFFF;
@@ -175,21 +175,21 @@ module fir
                 end
             end
             CALC : begin
-                if(sm_tlast) begin                                       // transfer last data of y
+                if(sm_tlast) begin                                                     // transfer last data of y
                     next_state = DONE;
                 end else begin
                     next_state = CALC;
                 end
             end
             DONE : begin
-                if(araddr == 12'h00 && rready && arready) begin  // read address 0x00
+                if(araddr == 12'h00 && rready && arready) begin                        // read address 0x00
                     next_state = IDLE;
                 end else begin
                     next_state = DONE;
                 end
             end
             default : begin
-                if(awvalid && wvalid && (awaddr == 12'h10 || awaddr == 12'h14)) begin
+                if(awaddr == 12'h00 && wdata[0] == 1'b1 && awvalid && wvalid) begin    // ap_start = 1
                     next_state = CALC;
                 end else begin
                     next_state = IDLE;
@@ -216,7 +216,7 @@ module fir
 
     // 0x10-14: data_length
     // 0x14-18: tap_num
-    reg  [31:0] data_length;
+    reg  [8:0] data_length;
     wire [31:0] data_length_tmp;
     reg  [31:0] tap_num;
     wire [31:0] tap_num_tmp;
@@ -225,7 +225,7 @@ module fir
         if(!axis_rst_n) begin
             data_length <= 0;
             tap_num     <= 0;
-        end else begin
+        end else if (state == IDLE) begin
             data_length <= data_length_tmp;
             tap_num     <= tap_num_tmp;
         end
@@ -269,7 +269,7 @@ module fir
     // bram signal
     always@* begin
         tap_EN = 1'b1;
-        tap_WE = ((awvalid && wvalid && awready && wready) &&
+        tap_WE = ((state == IDLE && awvalid && wvalid && awready && wready) &&
                   (awaddr[11:0] >= 12'h80 && awaddr[11:0] <= 12'hFF)) ? 4'b1111 : 4'b0000;
         tap_Di = (awvalid && wvalid) ? wdata : 12'h00;
         tap_A = (state == CALC) ? 4 * tap_cnt : tap_A_w_r;
@@ -284,6 +284,17 @@ module fir
 
     always@* begin
         case(data_state) 
+            DT_WAIT: begin
+                if(ss_tvalid) begin
+                    next_data_state = DT_PROC;
+                    next_sm_tvalid = 0;
+                    next_ss_tready = 0;
+                end else begin
+                    next_data_state = DT_WAIT;
+                    next_sm_tvalid = 0;
+                    next_ss_tready = 1;
+                end
+            end
             DT_PROC: begin
                 if(tap_cnt == (4 + (tap_num - 1))) begin
                     next_data_state = DT_DONE;
@@ -306,27 +317,24 @@ module fir
                     next_sm_tvalid = 1;
                 end
             end
-            DT_WAIT: begin
-                if(ss_tvalid) begin
-                    next_data_state = DT_PROC;
-                    next_sm_tvalid = 0;
-                    next_ss_tready = 0;
-                end else begin
-                    next_data_state = DT_WAIT;
-                    next_sm_tvalid = 0;
-                    next_ss_tready = 1;
-                end
-            end
             default : begin
                 next_data_state = DT_WAIT;
                 next_sm_tvalid = 0;
-                next_ss_tready = 1;
+                next_ss_tready = 0;
             end
         endcase
     end
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
+            data_state <= DT_WAIT;
+            sm_tvalid <= 0;
+            ss_tready <= 0;
+        end else if(state == IDLE) begin
+            data_state <= DT_WAIT;
+            sm_tvalid <= 0;
+            ss_tready <= 0;
+        end else if(ap_ctrl[0] == 1) begin
             data_state <= DT_WAIT;
             sm_tvalid <= 0;
             ss_tready <= 1;

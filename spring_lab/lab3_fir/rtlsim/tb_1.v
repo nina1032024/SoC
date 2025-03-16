@@ -209,10 +209,18 @@ module fir_tb
         $display("----Start the data input(AXI-Stream)----");
         for(i=0;i<(data_length-1);i=i+1) begin
             ss_tlast = 0; axi_stream_master(Din_list[i]);
-            // config_write(12'h10, 10); // write data_length
-            // config_write(12'h14, 10); // write tap_length
-            // // //config_read_check(12'h10, data_length, 32'hffffffff); // check if data_length dont change
-            // // //config_read_check(12'h14, coef_length, 32'hffffffff); // check if tap_length dont change
+            // check configuration reg for invalid write
+            config_write(12'h10, 30); // invalid write data_length
+            config_write(12'h14, 30); // invalid write tap_num
+            config_write(12'h80, -3); //invalid write coef
+            config_read_check(12'h10, data_length, 32'hffffffff); // check data_length
+            config_read_check(12'h14, coef_length, 32'hffffffff); // check tap_num
+            config_read_check(12'h80, 32'hffffffff, 32'hffffffff); // check coef
+
+            // check state
+            config_read_check(12'h00, 32'h00, 32'h0000_0001); // check start = 0;
+            config_read_check(12'h00, 32'h00, 32'h0000_0002); // check done = 0
+            config_read_check(12'h00, 32'h00, 32'h0000_0004); // check idle = 0
         end
         config_read_check(12'h00, 32'h00, 32'h0000_0002); // check done = 0
         ss_tlast = 1; axi_stream_master(Din_list[(`Data_Num - 1)]);
@@ -286,20 +294,21 @@ module fir_tb
     task config_write;
         input [11:0]    addr;
         input [31:0]    data;
-        reg [2:0] random;
+        integer random_w;
         begin
-            random = $urandom_range(0, 2); 
-            if (random == 0) begin             // addr -> data
+            random_w = ($random % 3 + 3) % 3;
+
+            if (random_w == 0) begin             // addr -> data
                 @(posedge axis_clk);
                 awvalid <= 1; awaddr <= addr;
                 @(posedge axis_clk);
                 wvalid  <= 1; wdata <= data;
-            end else if (random == 1) begin    // data -> addr 
+            end else if (random_w == 1) begin    // data -> addr 
                 @(posedge axis_clk);
                 wvalid  <= 1; wdata <= data;
                 @(posedge axis_clk);
                 awvalid <= 1; awaddr <= addr;
-            end else if (random == 2) begin    // data, addr  simutaneously
+            end else if (random_w == 2) begin    // data, addr  simutaneously
                 @(posedge axis_clk);
                 wvalid  <= 1; wdata <= data;
                 awvalid <= 1; awaddr <= addr;
@@ -322,19 +331,20 @@ module fir_tb
         input [11:0]        addr;
         input signed [31:0] exp_data;
         input [31:0]        mask;
-        reg [2:0] random;
+        integer random_r;
         begin
-            random = $urandom_range(0, 2); 
-            if(random == 0) begin
+            random_r = ($random % 3 + 3) % 3;
+
+            if(random_r == 0) begin
                 @(posedge axis_clk);
-                arvalid <= 1; araddr <= addr;    // arvalid -> rready
+                arvalid <= 1; araddr <= addr;      // arvalid -> rready
                 rready <= 0;
-            end else if (random == 1) begin      // rready -> arvalid
+            end else if (random_r == 1) begin      // rready -> arvalid
                 @(posedge axis_clk);
                 rready <= 1;
                 @(posedge axis_clk); 
                 arvalid <= 1; araddr <= addr; 
-            end else if (random ==2) begin       // arvalid, rready simultaneously
+            end else if (random_r ==2) begin       // arvalid, rready simultaneously
                 @(posedge axis_clk);
                 rready <= 1;
                 arvalid <= 1; araddr <= addr; 
@@ -368,8 +378,10 @@ module fir_tb
 
     task axi_stream_master;
         input  signed [31:0] in1;
+        integer random_ss;
         begin
-            repeat (30)@(posedge axis_clk);
+            random_ss = ($random % 30 + 30) % 30 + 1;
+            repeat (random_ss)@(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
 
@@ -384,8 +396,10 @@ module fir_tb
     task sm;
         input   signed [31:0] in2; // golden data
         input         [31:0] pcnt; // pattern count
+        integer random_sm;
         begin
-            repeat (30) @(posedge axis_clk);
+            random_sm = ($random % 30 + 30) % 30 + 1;
+            repeat (random_sm) @(posedge axis_clk);
             sm_tready <= 1;
             @(posedge axis_clk);
             while(!sm_tvalid) @(posedge axis_clk);
