@@ -18,8 +18,8 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define Data_Num 400
-`define Coef_Num 20
+`define Data_Num 600
+`define Coef_Num 25
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -380,8 +380,8 @@ module fir_tb
         input  signed [31:0] in1;
         integer random_ss;
         begin
-            random_ss = ($random % 30 + 30) % 30 + 1;
-            repeat (random_ss)@(posedge axis_clk);
+            //random_ss = ($random % 30 + 30) % 30 + 1;
+            repeat (0)@(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
 
@@ -398,8 +398,8 @@ module fir_tb
         input         [31:0] pcnt; // pattern count
         integer random_sm;
         begin
-            random_sm = ($random % 30 + 30) % 30 + 1;
-            repeat (random_sm) @(posedge axis_clk);
+            //random_sm = ($random % 30 + 30) % 30 + 1;
+            repeat (0) @(posedge axis_clk);
             sm_tready <= 1;
             @(posedge axis_clk);
             while(!sm_tvalid) @(posedge axis_clk);

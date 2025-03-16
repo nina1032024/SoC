@@ -47,21 +47,21 @@ module fir
          input   wire [(pDATA_WIDTH-1):0] data_Do,
 
          input   wire                     axis_clk,
-         input   wire                     axis_rst_n
+         input   wire                     axis_rst_n,
 
-        //  output [(pADDR_WIDTH-1):0] araddr_latch,
-        //  output [8:0] tap_cnt,
-        //  output [4:0] x_w_cnt,
-        //  output [4:0] x_r_cnt,
-        //  output [(pDATA_WIDTH-1):0] x,
-        //  output [(pDATA_WIDTH-1):0] h,
-        //  output [(pDATA_WIDTH-1):0] ss_tdata_latch,
-        //  output [(pDATA_WIDTH-1):0] mul,
-        //  output [(pDATA_WIDTH-1):0] y,
-        //  output [8:0] y_cnt,
-        //  output [1:0] data_state,
-        //  output [1:0] state,
-        //  output [2:0] ap_ctrl
+         output [(pADDR_WIDTH-1):0] araddr_latch,
+         output [8:0] tap_cnt,
+         output [4:0] x_w_cnt,
+         output [4:0] x_r_cnt,
+         output [(pDATA_WIDTH-1):0] x,
+         output [(pDATA_WIDTH-1):0] h,
+         output [(pDATA_WIDTH-1):0] ss_tdata_latch,
+         output [(pDATA_WIDTH-1):0] mul,
+         output [(pDATA_WIDTH-1):0] y,
+         output [31:0] y_cnt,
+         output [1:0] data_state,
+         output [1:0] state,
+         output [2:0] ap_ctrl
  
      );
 
@@ -188,7 +188,7 @@ module fir
                 end
             end
             DONE : begin
-                if(araddr == 12'h00 && rready && arready) begin                        // read address 0x00
+                if(araddr == 12'h00 && rready && rvalid) begin                        // read address 0x00
                     next_state = IDLE;
                 end else begin
                     next_state = DONE;
@@ -285,6 +285,9 @@ module fir
     reg [1:0] data_state, next_data_state;
     reg next_ss_tready, next_sm_tvalid;
 
+    wire [8:0] tap_cnt_ready;
+    assign tap_cnt_ready = (y_cnt < tap_num) ? (4 + (y_cnt - 1)) : (4 + (tap_num - 1)); 
+
     always@* begin
         case(data_state) 
             DT_WAIT: begin
@@ -363,6 +366,8 @@ module fir
             x_w_cnt <= tap_num - 1;
         end else if (state == IDLE) begin
             x_w_cnt <= tap_num - 1;
+        end else if(ap_ctrl[0] == 1)begin
+            x_w_cnt <= 0;
         end else begin 
             x_w_cnt <= x_w_cnt_tmp;
         end
@@ -402,6 +407,8 @@ module fir
     always @(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             ss_tdata_latch <= 0;
+        end else if(state == DONE)begin
+            ss_tdata_latch <= 0;
         end else begin
             ss_tdata_latch <= (ss_tvalid && ss_tready) ? ss_tdata : ss_tdata_latch;
         end
@@ -412,8 +419,10 @@ module fir
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             addr_cnt <= 0;
+        end else if(state == DONE)begin
+            addr_cnt <= 0;
         end else begin
-            addr_cnt <= (addr_cnt == tap_num - 1) ? addr_cnt : addr_cnt + 1;
+            addr_cnt <= (addr_cnt == 31) ? addr_cnt : addr_cnt + 1;
         end
     end
 
@@ -424,10 +433,14 @@ module fir
             data_WE = (ss_tvalid && ss_tready) ? 4'b1111 : 4'b0000; 
             data_Di = (ss_tvalid && ss_tready) ? ss_tdata_latch : 32'h00;
             data_A  = (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 *x_r_cnt;
-        end else if(state == IDLE) begin
+        end else if(state == IDLE || state == DONE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
             data_A = 4 * addr_cnt;
+        end else begin
+            data_WE = 4'b0000;
+            data_Di = 32'h00;
+            data_A = 0;
         end
     end
 
@@ -492,10 +505,12 @@ module fir
     assign sm_tdata_tmp = (tap_cnt == (4 + (tap_num - 1))) ? y : sm_tdata;
 
     // count the valid y output
-    reg [8:0] y_cnt;
+    reg [31:0] y_cnt;
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
+            y_cnt <= 0;
+        end else if(state == IDLE) begin
             y_cnt <= 0;
         end else if (sm_tvalid && sm_tready) begin
             y_cnt <= y_cnt + 1;
