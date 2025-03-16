@@ -47,22 +47,7 @@ module fir
          input   wire [(pDATA_WIDTH-1):0] data_Do,
 
          input   wire                     axis_clk,
-         input   wire                     axis_rst_n,
-
-         output [(pADDR_WIDTH-1):0] araddr_latch,
-         output [8:0] tap_cnt,
-         output [4:0] x_w_cnt,
-         output [4:0] x_r_cnt,
-         output [(pDATA_WIDTH-1):0] x,
-         output [(pDATA_WIDTH-1):0] h,
-         output [(pDATA_WIDTH-1):0] ss_tdata_latch,
-         output [(pDATA_WIDTH-1):0] mul,
-         output [(pDATA_WIDTH-1):0] y,
-         output [31:0] y_cnt,
-         output [1:0] data_state,
-         output [1:0] state,
-         output [2:0] ap_ctrl
- 
+         input   wire                     axis_rst_n
      );
 
     reg [2:0] ap_ctrl;
@@ -284,6 +269,7 @@ module fir
     // data transfer fsm : determine when to recieve data
     reg [1:0] data_state, next_data_state;
     reg next_ss_tready, next_sm_tvalid;
+    reg [31:0] y_cnt;
 
     wire [8:0] tap_cnt_ready;
     assign tap_cnt_ready = (y_cnt < tap_num) ? (4 + (y_cnt - 1)) : (4 + (tap_num - 1)); 
@@ -453,7 +439,6 @@ module fir
     reg  [(pDATA_WIDTH-1):0] mul;
     reg  [(pDATA_WIDTH-1):0] y;
     
-
     // multipler
     assign x_tmp = (tap_cnt == 1) ? ss_tdata_latch : data_Do;
     assign h_tmp = tap_Do;
@@ -505,7 +490,7 @@ module fir
     assign sm_tdata_tmp = (tap_cnt == (4 + (tap_num - 1))) ? y : sm_tdata;
 
     // count the valid y output
-    reg [31:0] y_cnt;
+    
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
