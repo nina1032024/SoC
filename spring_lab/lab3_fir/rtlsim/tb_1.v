@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `define Data_Num 400
-`define Coef_Num 32
+`define Coef_Num 20
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -73,6 +73,7 @@ module fir_tb
     wire [(pDATA_WIDTH-1):0] mul;
     wire [(pDATA_WIDTH-1):0] y;
     wire [8:0] y_cnt;
+    wire [1:0] data_state;
 
 
     fir fir_DUT(
@@ -123,7 +124,8 @@ module fir_tb
         .ss_tdata_latch(ss_tdata_latch),
         .mul(mul),
         .y(y),
-        .y_cnt(y_cnt)
+        .y_cnt(y_cnt),
+        .data_state(data_state)
 
         );
     
@@ -359,7 +361,7 @@ module fir_tb
     task axi_stream_master;
         input  signed [31:0] in1;
         begin
-            repeat (30)@(posedge axis_clk);
+            repeat (1)@(posedge axis_clk);
             ss_tvalid <= 1;
             ss_tdata  <= in1;
 

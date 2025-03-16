@@ -58,7 +58,8 @@ module fir
          output [(pDATA_WIDTH-1):0] ss_tdata_latch,
          output [(pDATA_WIDTH-1):0] mul,
          output [(pDATA_WIDTH-1):0] y,
-         output [8:0] y_cnt
+         output [8:0] y_cnt,
+         output [1:0] data_state
  
      );
 
@@ -153,7 +154,7 @@ module fir
 
     // read data contains read data_len, tap_num, coefficient, state
     always @* begin
-        if(rvalid) begin
+        if(state == IDLE && rvalid) begin
             if(araddr_latch == 12'h00) rdata = ap_ctrl;
             else if (araddr_latch == 12'h10) rdata = data_length;
             else if (araddr_latch == 12'h14) rdata = tap_num;
@@ -250,7 +251,9 @@ module fir
     // address generator
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            tap_cnt <= tap_num;
+            tap_cnt <= 0;
+        end else if (state == IDLE) begin
+            tap_cnt <= 0;
         end else if(ss_tvalid && ss_tready) begin
             tap_cnt <= 0;
         end else begin
@@ -282,33 +285,48 @@ module fir
     // ss bus
     
     // data transfer fsm : determine when to recieve data
-    reg data_state, next_data_state;
+    reg [1:0] data_state, next_data_state;
+    reg next_ss_tready, next_sm_tvalid;
 
     always@* begin
         case(data_state) 
             DT_PROC: begin
-                if(tap_cnt == tap_num - 1) begin
+                if(tap_cnt == (4 + (tap_num - 1))) begin
                     next_data_state = DT_DONE;
+                    next_ss_tready = 0;
+                    next_sm_tvalid = 1;
                 end else begin
                     next_data_state = DT_PROC;
+                    next_ss_tready = 0;
+                    next_sm_tvalid = 0;
                 end
             end
             DT_DONE: begin
-                if(sm_tvalid && sm_tready) begin
+                if(sm_tready) begin
                     next_data_state = DT_WAIT;
+                    next_ss_tready = 1;
+                    next_sm_tvalid = 0;
                 end else begin
                     next_data_state = DT_DONE;
+                    next_ss_tready = 0;
+                    next_sm_tvalid = 1;
                 end
             end
             DT_WAIT: begin
-                if(ss_tvalid && ss_tready) begin
+                if(ss_tvalid) begin
                     next_data_state = DT_PROC;
+                    next_sm_tvalid = 0;
+                    next_ss_tready = 0;
                 end else begin
                     next_data_state = DT_WAIT;
+                    next_sm_tvalid = 0;
+                    next_ss_tready = 1;
                 end
             end
             default : begin
                 next_data_state = DT_WAIT;
+                next_sm_tvalid = 0;
+                next_ss_tready = 1;
             end
         endcase
     end
@@ -316,54 +334,58 @@ module fir
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             data_state <= DT_WAIT;
+            sm_tvalid <= 0;
+            ss_tready <= 1;
         end else begin
             data_state <= next_data_state;
+            sm_tvalid <= next_sm_tvalid;
+            ss_tready <= next_ss_tready;
         end
     end 
 
     // ss fsm
-    reg ss_state, next_ss_state;
-    reg next_ss_tready;
+    // reg ss_state, next_ss_state;
+    // reg next_ss_tready;
 
-    always@* begin
-        case(ss_state) 
-            SS_OFF: begin
-                if(sm_tvalid && sm_tready) begin
-                    next_ss_state = SS_RECEIVE;
-                    next_ss_tready = 1;
-                end else begin
-                    next_ss_state = SS_OFF;
-                    next_ss_tready = 0;
-                end
-            end
-            SS_RECEIVE: begin
-                if(ss_tvalid) begin
-                    next_ss_state = SS_OFF;
-                    next_ss_tready = 0;
-                end else begin
-                    next_ss_state = SS_RECEIVE;
-                    next_ss_tready = 1;
-                end
-            end
-            default: begin
-                next_ss_state = SS_OFF;
-                next_ss_tready = 0;
-            end
-        endcase
-    end
+    // always@* begin
+    //     case(ss_state) 
+    //         SS_OFF: begin
+    //             if(sm_tvalid && sm_tready) begin
+    //                 next_ss_state = SS_RECEIVE;
+    //                 next_ss_tready = 1;
+    //             end else begin
+    //                 next_ss_state = SS_OFF;
+    //                 next_ss_tready = 0;
+    //             end
+    //         end
+    //         SS_RECEIVE: begin
+    //             if(ss_tvalid) begin
+    //                 next_ss_state = SS_OFF;
+    //                 next_ss_tready = 0;
+    //             end else begin
+    //                 next_ss_state = SS_RECEIVE;
+    //                 next_ss_tready = 1;
+    //             end
+    //         end
+    //         default: begin
+    //             next_ss_state = SS_OFF;
+    //             next_ss_tready = 0;
+    //         end
+    //     endcase
+    // end
   
-    always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            ss_tready <= 1'b0;
-            ss_state <= SS_OFF;
-        end else if(state == IDLE) begin
-            ss_tready <= 1'b0;
-            ss_state <= SS_OFF;
-        end else begin
-            ss_tready <= next_ss_tready;
-            ss_state <= next_ss_state;
-        end
-    end    
+    // always@(posedge axis_clk or negedge axis_rst_n) begin
+    //     if(!axis_rst_n) begin
+    //         ss_tready <= 1'b0;
+    //         ss_state <= SS_OFF;
+    //     end else if(state == IDLE) begin
+    //         ss_tready <= 1'b0;
+    //         ss_state <= SS_OFF;
+    //     end else begin
+    //         ss_tready <= next_ss_tready;
+    //         ss_state <= next_ss_state;
+    //     end
+    // end    
 
 // bram for data RAM
 
@@ -399,7 +421,7 @@ module fir
                 x_r_cnt_tmp=  x_r_cnt - 1;
             end
         end else begin
-            x_r_cnt_tmp=  x_r_cnt;
+            x_r_cnt_tmp=  x_w_cnt + 1;
         end
     end
 
@@ -434,12 +456,13 @@ module fir
         end
     end
 
+
     always@* begin
         data_EN = 1'b1;
         if(state == CALC) begin
             data_WE = (ss_tvalid && ss_tready) ? 4'b1111 : 4'b0000; 
             data_Di = (ss_tvalid && ss_tready) ? ss_tdata_latch : 32'h00;
-            data_A = 4 * x_r_cnt;
+            data_A  = (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 *x_r_cnt;
         end else if(state == IDLE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
@@ -494,51 +517,48 @@ module fir
 
 // axi-stream y output
     // sm fsm
-    reg sm_state, next_sm_state;
-    reg next_sm_tvalid;
+    // reg [1:0] sm_state, next_sm_state;
+    
 
-    always@* begin
-        case(sm_state) 
-            SM_OFF: begin
-                if(tap_cnt == (4 + (tap_num - 1))) begin
-                    next_sm_state = SM_TRANSFER;
-                    next_sm_tvalid = 1;
-                end else begin
-                    next_sm_state = SM_OFF;
-                    next_sm_tvalid = 0;
-                end
-            end
-            SM_TRANSFER: begin
-                if(sm_tready) begin
-                    next_sm_state = SM_OFF;
-                    next_sm_tvalid = 0;
-                end else begin
-                    next_sm_state = SM_TRANSFER;
-                    next_sm_tvalid = 1;
-                end
-            end
-            default: begin
-                next_sm_state = SM_OFF;
-                next_sm_tvalid = 0;
-            end
-        endcase
-    end
+    // always@* begin
+    //     case(sm_state) 
+    //         SM_OFF: begin
+    //             if(tap_cnt == (4 + (tap_num - 1))) begin
+    //                 next_sm_state = SM_TRANSFER;
+    //                 next_sm_tvalid = 1;
+    //             end else begin
+    //                 next_sm_state = SM_OFF;
+    //                 next_sm_tvalid = 0;
+    //             end
+    //         end
+    //         SM_TRANSFER: begin
+    //             if(sm_tready) begin
+    //                 next_sm_state = SM_OFF;
+    //                 next_sm_tvalid = 0;
+    //             end else begin
+    //                 next_sm_state = SM_TRANSFER;
+    //                 next_sm_tvalid = 1;
+    //             end
+    //         end
+    //         default: begin
+    //             next_sm_state = SM_OFF;
+    //             next_sm_tvalid = 0;
+    //         end
+    //     endcase
+    // end
   
-    always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            sm_tvalid <= 1'b0;
-            sm_state <= SM_OFF;
-        end else if (state == IDLE) begin
-            sm_tvalid <= 1'b0;
-            sm_state <= SM_OFF;
-        end else if(y_cnt <= 1) begin
-            sm_tvalid <= 1'b0;
-            sm_state <= SM_OFF;
-        end else begin
-            sm_tvalid <= next_sm_tvalid;
-            sm_state <= next_sm_state;
-        end
-    end    
+    // always@(posedge axis_clk or negedge axis_rst_n) begin
+    //     if(!axis_rst_n) begin
+    //         sm_tvalid <= 1'b0;
+    //         sm_state <= SM_OFF;
+    //     end else if (state == IDLE) begin
+    //         sm_tvalid <= 1'b0;
+    //         sm_state <= SM_OFF;
+    //     end else begin
+    //         sm_tvalid <= next_sm_tvalid;
+    //         sm_state <= next_sm_state;
+    //     end
+    // end    
 
     // sm data
     wire [(pDATA_WIDTH-1):0] sm_tdata_tmp;
@@ -560,14 +580,14 @@ module fir
 
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            y_cnt <= -1;
-        end else if (state == CALC && tap_cnt == (4 + (tap_num - 1))) begin
+            y_cnt <= 0;
+        end else if (tap_cnt == (4 + (tap_num - 1))) begin
             y_cnt <= y_cnt + 1;
         end else begin
             y_cnt <= y_cnt;
         end
     end
 
-    // assign sm_tlast = (y_cnt == data_length + 1);
+    assign sm_tlast = (y_cnt == data_length);
 
 endmodule
