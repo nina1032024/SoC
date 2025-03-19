@@ -228,15 +228,15 @@ module fir
 
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            state <= IDLE;
+            state       <= IDLE;
             data_length <= 0;
             tap_num     <= 0;
         end else if (state == IDLE) begin
-            state <= next_state;
+            state       <= next_state;
             data_length <= data_length_tmp;
             tap_num     <= tap_num_tmp;
         end else begin
-            state <= next_state;
+            state       <= next_state;
             data_length <= data_length;
             tap_num     <= tap_num;
         end
@@ -276,7 +276,7 @@ module fir
         tap_WE = ((state == IDLE && awvalid && wvalid && awready && wready) &&
                   (awaddr[11:0] >= 12'h80 && awaddr[11:0] <= 12'hFF)) ? 4'b1111 : 4'b0000;
         tap_Di = (awvalid && wvalid) ? wdata : 12'h00;
-        tap_A = (state == CALC) ? 4 * tap_cnt : tap_A_w_r;
+        tap_A  = (state == CALC) ? 4 * tap_cnt : tap_A_w_r;
     end
 //********************************************* bram for tap ram *********************************************//
 //************************************************************************************************************//
@@ -305,11 +305,11 @@ module fir
         end else if(state == IDLE || state == DONE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
-            data_A = 4 * addr_cnt;
+            data_A  = 4 * addr_cnt;
         end else begin
             data_WE = 4'b0000;
             data_Di = 32'h00;
-            data_A = 0;
+            data_A  = 0;
         end
     end
 
@@ -410,12 +410,12 @@ module fir
             x_r_cnt_tmp = x_w_cnt_tmp;
         end else if (data_state == DT_PROC) begin
             if(x_r_cnt == 0) begin
-                x_r_cnt_tmp=  tap_num - 1;
+                x_r_cnt_tmp = tap_num - 1;
             end else begin
-                x_r_cnt_tmp=  x_r_cnt - 1;
+                x_r_cnt_tmp = x_r_cnt - 1;
             end
         end else begin
-            x_r_cnt_tmp=  x_w_cnt + 1;
+            x_r_cnt_tmp = x_w_cnt + 1;
         end
     end
 
