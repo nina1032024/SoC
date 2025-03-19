@@ -472,16 +472,16 @@ module fir
     
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            x <= 0;
-            h<= 0;
+            x   <= 0;
+            h   <= 0;
             mul <= 0;
         end else if(state == IDLE) begin
-            x <= 0;
-            h<= 0;
+            x   <= 0;
+            h   <= 0;
             mul <= 0;
         end else begin
-            x <= x_tmp;
-            h<= h_tmp;
+            x   <= x_tmp;
+            h   <= h_tmp;
             mul <= mul_tmp;
         end
     end
