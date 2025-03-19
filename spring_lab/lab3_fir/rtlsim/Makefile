@@ -1,11 +1,8 @@
 sim:
-	vcs -f run.f -R -full64 -debug_access+all +v2k
+	vcs -R +v2k -full64 tb.v ./bram32.v ../hdl/fir_test.v -debug_acc +nospecify
+
 clean:
-	rm -rf simv.daidir
-	rm -rf csrc
-	rm ucli.key
-	rm testbench.fsdb
-	rm simv
-	rm novas_dump.log
-	rm answer.txt
-	
+	rm -rf ./csrc
+	rm -rf simv*
+	rm -rf ucli.key
+	rm -rf *.vcd	

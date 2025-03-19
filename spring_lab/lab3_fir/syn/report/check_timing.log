@@ -5,6 +5,56 @@ Warning: Design 'fir' contains 1 high-fanout nets. A fanout number of 1000 will 
 Information: Checking generated_clocks...
 
 Information: Checking loops...
+Warning: timing loops detected. (TIM-209)
+    #              loop breakpoint
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_0            -> C2400/Z_0                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_1            -> C2400/Z_1                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_2            -> C2400/Z_2                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_3            -> C2400/Z_3                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_4            -> C2400/Z_4                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_5            -> C2400/Z_5                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_6            -> C2400/Z_6                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_7            -> C2400/Z_7                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_8            -> C2400/Z_8                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_9            -> C2400/Z_9                *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_10           -> C2400/Z_10               *SELECT_OP_2.12_2.1_12  #
+
+                 cell_arc                            lib cell
+--------------------------------------------------------------------------------
+C2400/DATA2_11           -> C2400/Z_11               *SELECT_OP_2.12_2.1_12  #
 
 Information: Checking no_input_delay...
 
@@ -14,16 +64,6 @@ Warning: The following end-points are not constrained for maximum delay.
 
 End point
 ---------------
-tap_cnt_reg[0]/data_in
-tap_cnt_reg[1]/data_in
-tap_cnt_reg[2]/data_in
-tap_cnt_reg[3]/data_in
-tap_cnt_reg[4]/data_in
-x_r_cnt_reg[0]/data_in
-x_r_cnt_reg[1]/data_in
-x_r_cnt_reg[2]/data_in
-x_r_cnt_reg[3]/data_in
-x_r_cnt_reg[4]/data_in
 x_w_cnt_reg[0]/data_in
 x_w_cnt_reg[1]/data_in
 x_w_cnt_reg[2]/data_in

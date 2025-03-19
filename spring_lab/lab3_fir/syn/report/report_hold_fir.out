@@ -6,43 +6,15 @@ Report : timing
         -max_paths 5
 Design : fir
 Version: R-2020.09-SP5
-Date   : Sun Mar  9 14:17:00 2025
+Date   : Wed Mar 19 21:54:21 2025
 ****************************************
 
 Operating Conditions: slow   Library: slow
 Wire Load Model Mode: top
 
-  Startpoint: wready_reg (rising edge-triggered flip-flop clocked by axis_clk)
-  Endpoint: wready_reg (rising edge-triggered flip-flop clocked by axis_clk)
-  Path Group: axis_clk
-  Path Type: min
-
-  Point                                    Incr       Path
-  -----------------------------------------------------------
-  clock axis_clk (rise edge)               0.00       0.00
-  clock network delay (ideal)              0.50       0.50
-  wready_reg/CK (DFFRQXL)                  0.00       0.50 r
-  wready_reg/Q (DFFRQXL)                   0.23       0.73 r
-  U2415/Y (NOR2BXL)                        0.04       0.78 f
-  wready_reg/D (DFFRQXL)                   0.00       0.78 f
-  data arrival time                                   0.78
-
-  clock axis_clk (rise edge)               0.00       0.00
-  clock network delay (ideal)              0.50       0.50
-  clock uncertainty                        0.10       0.60
-  wready_reg/CK (DFFRQXL)                  0.00       0.60 r
-  library hold time                        0.02       0.62
-  data required time                                  0.62
-  -----------------------------------------------------------
-  data required time                                  0.62
-  data arrival time                                  -0.78
-  -----------------------------------------------------------
-  slack (MET)                                         0.15
-
-
-  Startpoint: data_length_reg[7]
+  Startpoint: addr_cnt_reg[3]
               (rising edge-triggered flip-flop clocked by axis_clk)
-  Endpoint: sm_tlast_reg
+  Endpoint: addr_cnt_reg[3]
             (rising edge-triggered flip-flop clocked by axis_clk)
   Path Group: axis_clk
   Path Type: min
@@ -51,28 +23,28 @@ Wire Load Model Mode: top
   -----------------------------------------------------------
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
-  data_length_reg[7]/CK (DFFRQXL)          0.00       0.50 r
-  data_length_reg[7]/Q (DFFRQXL)           0.24       0.74 r
-  U2289/Y (AOI211XL)                       0.07       0.81 f
-  sm_tlast_reg/D (DFFRQXL)                 0.00       0.81 f
-  data arrival time                                   0.81
+  addr_cnt_reg[3]/CK (DFFRXL)              0.00       0.50 r
+  addr_cnt_reg[3]/QN (DFFRXL)              0.19       0.69 r
+  U2410/Y (AOI211XL)                       0.08       0.77 f
+  addr_cnt_reg[3]/D (DFFRXL)               0.00       0.77 f
+  data arrival time                                   0.77
 
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
   clock uncertainty                        0.10       0.60
-  sm_tlast_reg/CK (DFFRQXL)                0.00       0.60 r
-  library hold time                        0.02       0.62
-  data required time                                  0.62
+  addr_cnt_reg[3]/CK (DFFRXL)              0.00       0.60 r
+  library hold time                        0.00       0.60
+  data required time                                  0.60
   -----------------------------------------------------------
-  data required time                                  0.62
-  data arrival time                                  -0.81
+  data required time                                  0.60
+  data arrival time                                  -0.77
   -----------------------------------------------------------
-  slack (MET)                                         0.18
+  slack (MET)                                         0.16
 
 
-  Startpoint: y_cnt_reg[5]
+  Startpoint: read_state_reg
               (rising edge-triggered flip-flop clocked by axis_clk)
-  Endpoint: y_cnt_reg[5]
+  Endpoint: read_state_reg
             (rising edge-triggered flip-flop clocked by axis_clk)
   Path Group: axis_clk
   Path Type: min
@@ -81,28 +53,28 @@ Wire Load Model Mode: top
   -----------------------------------------------------------
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
-  y_cnt_reg[5]/CK (DFFSXL)                 0.00       0.50 r
-  y_cnt_reg[5]/QN (DFFSXL)                 0.22       0.72 r
-  U2498/Y (AOI32XL)                        0.08       0.79 f
-  y_cnt_reg[5]/D (DFFSXL)                  0.00       0.79 f
+  read_state_reg/CK (DFFRQXL)              0.00       0.50 r
+  read_state_reg/Q (DFFRQXL)               0.23       0.73 r
+  U3162/Y (AOI22XL)                        0.06       0.79 f
+  read_state_reg/D (DFFRQXL)               0.00       0.79 f
   data arrival time                                   0.79
 
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
   clock uncertainty                        0.10       0.60
-  y_cnt_reg[5]/CK (DFFSXL)                 0.00       0.60 r
-  library hold time                        0.01       0.61
-  data required time                                  0.61
+  read_state_reg/CK (DFFRQXL)              0.00       0.60 r
+  library hold time                        0.02       0.62
+  data required time                                  0.62
   -----------------------------------------------------------
-  data required time                                  0.61
+  data required time                                  0.62
   data arrival time                                  -0.79
   -----------------------------------------------------------
-  slack (MET)                                         0.19
+  slack (MET)                                         0.17
 
 
-  Startpoint: y_cnt_reg[4]
+  Startpoint: addr_cnt_reg[3]
               (rising edge-triggered flip-flop clocked by axis_clk)
-  Endpoint: y_cnt_reg[4]
+  Endpoint: addr_cnt_reg[4]
             (rising edge-triggered flip-flop clocked by axis_clk)
   Path Group: axis_clk
   Path Type: min
@@ -111,28 +83,28 @@ Wire Load Model Mode: top
   -----------------------------------------------------------
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
-  y_cnt_reg[4]/CK (DFFRQXL)                0.00       0.50 r
-  y_cnt_reg[4]/Q (DFFRQXL)                 0.24       0.74 r
-  U2496/Y (OAI32XL)                        0.08       0.83 f
-  y_cnt_reg[4]/D (DFFRQXL)                 0.00       0.83 f
-  data arrival time                                   0.83
+  addr_cnt_reg[3]/CK (DFFRXL)              0.00       0.50 r
+  addr_cnt_reg[3]/QN (DFFRXL)              0.19       0.69 r
+  U3305/Y (OAI32XL)                        0.10       0.79 f
+  addr_cnt_reg[4]/D (DFFRQXL)              0.00       0.79 f
+  data arrival time                                   0.79
 
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
   clock uncertainty                        0.10       0.60
-  y_cnt_reg[4]/CK (DFFRQXL)                0.00       0.60 r
+  addr_cnt_reg[4]/CK (DFFRQXL)             0.00       0.60 r
   library hold time                        0.02       0.62
   data required time                                  0.62
   -----------------------------------------------------------
   data required time                                  0.62
-  data arrival time                                  -0.83
+  data arrival time                                  -0.79
   -----------------------------------------------------------
-  slack (MET)                                         0.21
+  slack (MET)                                         0.17
 
 
-  Startpoint: y_cnt_reg[6]
+  Startpoint: tap_cnt_reg[0]
               (rising edge-triggered flip-flop clocked by axis_clk)
-  Endpoint: y_cnt_reg[6]
+  Endpoint: tap_cnt_reg[0]
             (rising edge-triggered flip-flop clocked by axis_clk)
   Path Group: axis_clk
   Path Type: min
@@ -141,23 +113,53 @@ Wire Load Model Mode: top
   -----------------------------------------------------------
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
-  y_cnt_reg[6]/CK (DFFRQXL)                0.00       0.50 r
-  y_cnt_reg[6]/Q (DFFRQXL)                 0.24       0.74 r
-  U2500/Y (OAI32XL)                        0.08       0.83 f
-  y_cnt_reg[6]/D (DFFRQXL)                 0.00       0.83 f
-  data arrival time                                   0.83
+  tap_cnt_reg[0]/CK (DFFRQXL)              0.00       0.50 r
+  tap_cnt_reg[0]/Q (DFFRQXL)               0.25       0.75 r
+  U2813/Y (NOR2XL)                         0.04       0.80 f
+  tap_cnt_reg[0]/D (DFFRQXL)               0.00       0.80 f
+  data arrival time                                   0.80
 
   clock axis_clk (rise edge)               0.00       0.00
   clock network delay (ideal)              0.50       0.50
   clock uncertainty                        0.10       0.60
-  y_cnt_reg[6]/CK (DFFRQXL)                0.00       0.60 r
+  tap_cnt_reg[0]/CK (DFFRQXL)              0.00       0.60 r
   library hold time                        0.02       0.62
   data required time                                  0.62
   -----------------------------------------------------------
   data required time                                  0.62
-  data arrival time                                  -0.83
+  data arrival time                                  -0.80
   -----------------------------------------------------------
-  slack (MET)                                         0.21
+  slack (MET)                                         0.18
+
+
+  Startpoint: y_cnt_reg[31]
+              (rising edge-triggered flip-flop clocked by axis_clk)
+  Endpoint: y_cnt_reg[31]
+            (rising edge-triggered flip-flop clocked by axis_clk)
+  Path Group: axis_clk
+  Path Type: min
+
+  Point                                    Incr       Path
+  -----------------------------------------------------------
+  clock axis_clk (rise edge)               0.00       0.00
+  clock network delay (ideal)              0.50       0.50
+  y_cnt_reg[31]/CK (DFFRQXL)               0.00       0.50 r
+  y_cnt_reg[31]/Q (DFFRQXL)                0.22       0.72 r
+  U3349/Y (OAI32XL)                        0.08       0.80 f
+  y_cnt_reg[31]/D (DFFRQXL)                0.00       0.80 f
+  data arrival time                                   0.80
+
+  clock axis_clk (rise edge)               0.00       0.00
+  clock network delay (ideal)              0.50       0.50
+  clock uncertainty                        0.10       0.60
+  y_cnt_reg[31]/CK (DFFRQXL)               0.00       0.60 r
+  library hold time                        0.02       0.62
+  data required time                                  0.62
+  -----------------------------------------------------------
+  data required time                                  0.62
+  data arrival time                                  -0.80
+  -----------------------------------------------------------
+  slack (MET)                                         0.18
 
 
 1
