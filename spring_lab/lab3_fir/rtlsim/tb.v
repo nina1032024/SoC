@@ -62,6 +62,17 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
+    // wire [8:0] tap_cnt;
+    // wire [(pDATA_WIDTH-1):0] x;
+    // wire [(pDATA_WIDTH-1):0] h;
+    // wire [(pDATA_WIDTH-1):0] mul;
+    // wire [(pDATA_WIDTH-1):0] y;
+    // wire [4:0] x_r_cnt;
+    // wire [4:0] x_w_cnt;
+    // wire [1:0] data_state;
+    // wire [(pDATA_WIDTH-1):0] sm_tdata;
+    // wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
+
 
     fir fir_DUT(
         .awready(awready),
@@ -101,6 +112,16 @@ module fir_tb
 
         .axis_clk(axis_clk),
         .axis_rst_n(axis_rst_n)
+
+        // .tap_cnt(tap_cnt),
+        // .x(x),
+        // .h(h),
+        // .mul(mul),
+        // .y(y),
+        // .x_r_cnt(x_r_cnt),
+        // .x_w_cnt(x_w_cnt),
+        // .data_state(data_state),
+        // .ss_tdata_latch(ss_tdata_latch)
         );
     
     // RAM for tap

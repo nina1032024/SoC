@@ -5,4 +5,5 @@ This `FIR` module is implemented with an `AXI4-Lite` interface for configuration
 ![alt text](image.png)
 ### Hackmd report
 For more details, refer to :
-https://hackmd.io/9N8llY-tTKGlezyOHlR_Jg
+[Lab3--FIR Report](https://hackmd.io/9N8llY-tTKGlezyOHlR_Jg)
+

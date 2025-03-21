@@ -113,8 +113,8 @@ module fir
 //************************************************************************************************************//
 //***************************** axi-lite interface : write channel, read channel *****************************//
     // axilite write (synchronization of address and data, signal only last for one cycle)
-    assign awready_tmp = awvalid && wvalid  & (~wready); 
-    assign wready_tmp  = awvalid && wvalid  & (~wready);
+    assign awready_tmp = awvalid && wvalid  && (~wready); 
+    assign wready_tmp  = awvalid && wvalid  && (~wready);
 
     // axilite read (first get address then return data, signal only last for one cycle)
     assign arready_tmp = arvalid && (~arready);
@@ -183,7 +183,7 @@ module fir
     always@* begin
         case(state)
             IDLE : begin
-                if(awaddr == 12'h00 && wdata[0] == 1'b1 && awvalid && wvalid) begin    // ap_start = 1
+                if(awaddr == 12'h00 && wdata[0] == 1'b1 && awready && wready) begin    // ap_start = 1
                     next_state = CALC;
                 end else begin
                     next_state = IDLE;
@@ -204,7 +204,7 @@ module fir
                 end
             end
             default : begin
-                if(awaddr == 12'h00 && wdata[0] == 1'b1 && awvalid && wvalid) begin    // ap_start = 1
+                if(awaddr == 12'h00 && wdata[0] == 1'b1 && awready && wready) begin    // ap_start = 1
                     next_state = CALC;
                 end else begin
                     next_state = IDLE;
@@ -263,7 +263,7 @@ module fir
             tap_cnt <= 0;
         end else if (state == IDLE) begin
             tap_cnt <= 0;
-        end else if(ss_tvalid && ss_tready) begin
+        end else if (ss_tvalid && ss_tready) begin
             tap_cnt <= 0;
         end else begin
             tap_cnt <=  tap_cnt + 1;
@@ -301,7 +301,7 @@ module fir
         if(state == CALC) begin
             data_WE = (ss_tvalid && ss_tready) ? 4'b1111 : 4'b0000; 
             data_Di = (ss_tvalid && ss_tready) ? ss_tdata_latch : 32'h00;
-            data_A  = (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 *x_r_cnt;
+            data_A  = (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 * x_r_cnt;
         end else if(state == IDLE || state == DONE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
@@ -313,92 +313,7 @@ module fir
         end
     end
 
-// 2. data transfer fsm : determine when to recieve and send data
-    always@* begin
-        case(data_state) 
-            DT_WAIT: begin
-                if(ss_tvalid) begin
-                    next_data_state = DT_PROC;
-                    next_ss_tready = 0;
-                    next_sm_tvalid = 0;
-                end else begin
-                    next_data_state = DT_WAIT;
-                    next_ss_tready = 1;
-                    next_sm_tvalid = 0;
-                end
-            end
-            DT_PROC: begin
-                if(tap_cnt == (4 + (tap_num - 1))) begin
-                    next_data_state = DT_DONE;
-                    next_ss_tready = 0;
-                    next_sm_tvalid = 1;
-                end else begin
-                    next_data_state = DT_PROC;
-                    next_ss_tready = 0;
-                    next_sm_tvalid = 0;
-                end
-            end
-            DT_DONE: begin
-                if(sm_tready) begin
-                    if(y_cnt == data_length - 1) begin
-                        next_data_state = DT_IDLE;
-                        next_ss_tready = 0;
-                        next_sm_tvalid = 0;
-                    end else begin
-                        next_data_state = DT_WAIT;
-                        next_ss_tready = 1;
-                        next_sm_tvalid = 0;
-                    end
-                end else begin
-                    next_data_state = DT_DONE;
-                    next_ss_tready = 0;
-                    next_sm_tvalid = 1;
-                end
-            end
-            DT_IDLE:begin
-                if(awaddr == 12'h00 && wdata [0] == 1'b1 && awvalid && wvalid) begin
-                    next_data_state = DT_WAIT;
-                    next_ss_tready = 1;
-                    next_sm_tvalid = 0;
-                end else begin
-                    next_data_state = DT_IDLE;
-                    next_ss_tready = 0;
-                    next_sm_tvalid = 0;
-                end
-            end
-            default : begin
-                next_data_state = DT_WAIT;
-                next_sm_tvalid = 0;
-                next_ss_tready = 0;
-            end
-        endcase
-    end
-
-    always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            data_state     <= DT_IDLE;
-            ss_tready      <= 0;
-            ss_tdata_latch <= 0;
-            sm_tvalid      <= 0;
-            sm_tdata       <= 32'h00;
-        end else if(state == IDLE) begin
-            data_state     <= next_data_state;
-            ss_tready      <= next_ss_tready;
-            ss_tdata_latch <= 0;
-            sm_tvalid      <= next_sm_tvalid;
-            sm_tdata       <= 32'h00;
-        end else begin
-            data_state     <= next_data_state;
-            ss_tready      <= next_ss_tready;
-            ss_tdata_latch <= (ss_tvalid && ss_tready) ? ss_tdata : ss_tdata_latch;
-            sm_tvalid      <= next_sm_tvalid;
-            sm_tdata       <= sm_tdata_tmp;
-        end
-    end
-    
-    assign sm_tdata_tmp = (tap_cnt == (4 + (tap_num - 1))) ? y : sm_tdata;
-    
-// 3. address generator for core engine operation
+// 2. address generator for core engine operation
     // address generator for newly stored data (up Counter)
     assign x_w_cnt_tmp = (ss_tready && ss_tvalid) ? 
              ((x_w_cnt == tap_num - 1) ? 0 : (x_w_cnt + 1)) : 
@@ -432,6 +347,91 @@ module fir
         end
     end
 
+// 3. data transfer fsm : determine when to recieve and send data
+    always@* begin
+        case(data_state) 
+            DT_WAIT: begin
+                if(ss_tvalid) begin
+                    next_data_state = DT_PROC;
+                    next_ss_tready  = 0;
+                    next_sm_tvalid  = 0;
+                end else begin
+                    next_data_state = DT_WAIT;
+                    next_ss_tready  = 1;
+                    next_sm_tvalid  = 0;
+                end
+            end
+            DT_PROC: begin
+                if(tap_cnt == (4 + (tap_num - 1))) begin
+                    next_data_state = DT_DONE;
+                    next_ss_tready  = 0;
+                    next_sm_tvalid  = 1;
+                end else begin
+                    next_data_state = DT_PROC;
+                    next_ss_tready  = 0;
+                    next_sm_tvalid  = 0;
+                end
+            end
+            DT_DONE: begin
+                if(sm_tready) begin
+                    if(y_cnt == data_length - 1) begin
+                        next_data_state = DT_IDLE;
+                        next_ss_tready  = 0;
+                        next_sm_tvalid  = 0;
+                    end else begin
+                        next_data_state = DT_WAIT;
+                        next_ss_tready  = 1;
+                        next_sm_tvalid  = 0;
+                    end
+                end else begin
+                    next_data_state = DT_DONE;
+                    next_ss_tready  = 0;
+                    next_sm_tvalid  = 1;
+                end
+            end
+            DT_IDLE:begin
+                if(awaddr == 12'h00 && wdata [0] == 1'b1 && awready && wready) begin
+                    next_data_state = DT_WAIT;
+                    next_ss_tready  = 1;
+                    next_sm_tvalid  = 0;
+                end else begin
+                    next_data_state = DT_IDLE;
+                    next_ss_tready  = 0;
+                    next_sm_tvalid  = 0;
+                end
+            end
+            default : begin
+                next_data_state = DT_WAIT;
+                next_sm_tvalid  = 0;
+                next_ss_tready  = 0;
+            end
+        endcase
+    end
+
+    always@(posedge axis_clk or negedge axis_rst_n) begin
+        if(!axis_rst_n) begin
+            data_state     <= DT_IDLE;
+            ss_tready      <= 0;
+            ss_tdata_latch <= 0;
+            sm_tvalid      <= 0;
+            sm_tdata       <= 32'h00;
+        end else if(state == IDLE) begin
+            data_state     <= next_data_state;
+            ss_tready      <= next_ss_tready;
+            ss_tdata_latch <= 0;
+            sm_tvalid      <= next_sm_tvalid;
+            sm_tdata       <= 32'h00;
+        end else begin
+            data_state     <= next_data_state;
+            ss_tready      <= next_ss_tready;
+            ss_tdata_latch <= (ss_tvalid && ss_tready) ? ss_tdata : ss_tdata_latch;
+            sm_tvalid      <= next_sm_tvalid;
+            sm_tdata       <= sm_tdata_tmp;
+        end
+    end
+    
+    assign sm_tdata_tmp = (tap_cnt == (4 + (tap_num - 1))) ? y : sm_tdata;
+
 // 4. count the valid y output
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
@@ -446,7 +446,6 @@ module fir
     end
 
     assign sm_tlast = (y_cnt == data_length);
-
 //****************************************** data flow for axistream******************************************//
 //************************************************************************************************************//
 
