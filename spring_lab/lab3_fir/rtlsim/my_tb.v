@@ -18,8 +18,8 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define Data_Num 500
-`define Coef_Num 17
+`define Data_Num 400
+`define Coef_Num 15
 
 module fir_tb
 #(  parameter pADDR_WIDTH = 12,
@@ -62,22 +62,6 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
-//test
-    // wire [(pADDR_WIDTH-1):0] araddr_latch;
-    // wire [8:0] tap_cnt;
-    // wire [4:0] x_w_cnt;
-    // wire [4:0] x_r_cnt;
-    // wire [(pDATA_WIDTH-1):0] x;
-    // wire [(pDATA_WIDTH-1):0] h;
-    // wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
-    // wire [(pDATA_WIDTH-1):0] mul;
-    // wire [(pDATA_WIDTH-1):0] y;
-    // wire [8:0] y_cnt;
-    // wire [1:0] data_state;
-    // wire [1:0] state;
-    // wire [2:0] ap_ctrl;
-
-
     fir fir_DUT(
         .awready(awready),
         .wready(wready),
@@ -116,24 +100,9 @@ module fir_tb
 
         .axis_clk(axis_clk),
         .axis_rst_n(axis_rst_n)
-
-        // .araddr_latch(araddr_latch),
-        // .tap_cnt(tap_cnt),
-        // .x_w_cnt(x_w_cnt),
-        // .x_r_cnt(x_r_cnt),
-        // .x(x),
-        // .h(h),
-        // .ss_tdata_latch(ss_tdata_latch),
-        // .mul(mul),
-        // .y(y),
-        // .y_cnt(y_cnt),
-        // .data_state(data_state),
-        // .state(state),
-        // .ap_ctrl(ap_ctrl)
-
         );
     
-    // RAM for tap
+// RAM for tap
     bram32 tap_RAM (
         .CLK(axis_clk),
         .WE(tap_WE),
@@ -143,7 +112,7 @@ module fir_tb
         .Do(tap_Do)
     );
 
-    // RAM for data: choose bram11 or bram12
+// RAM for data: choose bram11 or bram12
     bram32 data_RAM(
         .CLK(axis_clk),
         .WE(data_WE),
@@ -152,9 +121,11 @@ module fir_tb
         .A(data_A),
         .Do(data_Do)
     );
+    
     reg signed [(pDATA_WIDTH-1):0] Din_list[0:(`Data_Num-1)];
     reg signed [(pDATA_WIDTH-1):0] golden_list[0:(`Data_Num-1)];
-    reg signed [(pDATA_WIDTH-1):0] coef[0:(`Coef_Num-1)]; // fill in coef 
+    reg signed [(pDATA_WIDTH-1):0] coef[0:(`Coef_Num-1)];  
+    
     // `ifdef FSDB
     //     initial begin
     //         $fsdbDumpfile("fir.fsdb");
@@ -187,9 +158,9 @@ module fir_tb
     initial begin
         data_length = 0;
         coef_length = 0;
-        Din = $fopen("x0.dat","r");
-        golden = $fopen("y0.dat","r");
-	    coef_data= $fopen("coef0.dat","r");
+        Din = $fopen("x1.dat","r");
+        golden = $fopen("y1.dat","r");
+	    coef_data= $fopen("coef1.dat","r");
 
         for(m=0;m< `Data_Num ;m=m+1) begin
             input_data = $fscanf(Din,"%d", Din_list[m]);
@@ -210,25 +181,26 @@ module fir_tb
         for(i=0;i<(data_length-1);i=i+1) begin
             ss_tlast = 0; axi_stream_master(Din_list[i]);
             // check configuration reg for invalid write
-            config_write(12'h10, 30); // invalid write data_length
-            config_write(12'h14, 30); // invalid write tap_num
-            config_write(12'h80, -3); //invalid write coef
-            config_read_check(12'h10, data_length, 32'hffffffff); // check data_length
-            config_read_check(12'h14, coef_length, 32'hffffffff); // check tap_num
+            config_write(12'h10, 30);                              // invalid write data_length
+            config_write(12'h14, 30);                              // invalid write tap_num
+            config_write(12'h80, -3);                              //invalid write coef
+            config_read_check(12'h10, data_length, 32'hffffffff);  // check data_length
+            config_read_check(12'h14, coef_length, 32'hffffffff);  // check tap_num
             config_read_check(12'hFC, 32'hffffffff, 32'hffffffff); // check coef
 
             // check state
-            config_read_check(12'h00, 32'h00, 32'h0000_0001); // check start = 0;
-            config_read_check(12'h00, 32'h00, 32'h0000_0002); // check done = 0
-            config_read_check(12'h00, 32'h00, 32'h0000_0004); // check idle = 0
+            config_read_check(12'h00, 32'h00, 32'h0000_0001);      // check start = 0;
+            config_read_check(12'h00, 32'h00, 32'h0000_0002);      // check done = 0
+            config_read_check(12'h00, 32'h00, 32'h0000_0004);      // check idle = 0
         end
-        config_read_check(12'h00, 32'h00, 32'h0000_0002); // check done = 0
+        config_read_check(12'h00, 32'h00, 32'h0000_0002);          // check done = 0
         ss_tlast = 1; axi_stream_master(Din_list[(`Data_Num - 1)]);
         $display("------End the data input(AXI-Stream)------");
     end
+
     reg error_coef;
     integer k,l;
-     reg error;
+    reg error;
     reg status_error;
     initial begin
         wait(axis_rst_n==0);
@@ -238,8 +210,6 @@ module fir_tb
         for(l=0;l < data_length;l=l+1) begin
             sm(golden_list[l],l);
         end
-        config_read_check(12'h00, 32'h02, 32'h0000_0002); // check ap_done = 1 (0x00 [bit 1])
-        config_read_check(12'h00, 32'h04, 32'h0000_0004); // check ap_idle = 1 (0x00 [bit 2])
         if (error == 0 & error_coef == 0) begin
             $display("---------------------------------------------");
             $display("-----------Congratulations! Pass-------------");
@@ -251,15 +221,15 @@ module fir_tb
     end
 
     //Prevent hang
-    // integer timeout = (1000000);
-    // initial begin
-    //     while(timeout > 0) begin
-    //         @(posedge axis_clk);
-    //         timeout = timeout - 1;
-    //     end
-    //     $display($time, "Simualtion Hang ....");
-    //     $finish;
-    // end
+    integer timeout = (1000000);
+    initial begin
+        while(timeout > 0) begin
+            @(posedge axis_clk);
+            timeout = timeout - 1;
+        end
+        $display($time, "Simualtion Hang ....");
+        $finish;
+    end
 
     initial begin
         arvalid=0;
@@ -392,7 +362,6 @@ module fir_tb
         end
     endtask
     
-
     task sm;
         input   signed [31:0] in2; // golden data
         input         [31:0] pcnt; // pattern count

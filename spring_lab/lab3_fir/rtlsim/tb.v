@@ -62,18 +62,6 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
-    // wire [8:0] tap_cnt;
-    // wire [(pDATA_WIDTH-1):0] x;
-    // wire [(pDATA_WIDTH-1):0] h;
-    // wire [(pDATA_WIDTH-1):0] mul;
-    // wire [(pDATA_WIDTH-1):0] y;
-    // wire [4:0] x_r_cnt;
-    // wire [4:0] x_w_cnt;
-    // wire [1:0] data_state;
-    // wire [(pDATA_WIDTH-1):0] sm_tdata;
-    // wire [(pDATA_WIDTH-1):0] ss_tdata_latch;
-
-
     fir fir_DUT(
         .awready(awready),
         .wready(wready),
@@ -112,16 +100,6 @@ module fir_tb
 
         .axis_clk(axis_clk),
         .axis_rst_n(axis_rst_n)
-
-        // .tap_cnt(tap_cnt),
-        // .x(x),
-        // .h(h),
-        // .mul(mul),
-        // .y(y),
-        // .x_r_cnt(x_r_cnt),
-        // .x_w_cnt(x_w_cnt),
-        // .data_state(data_state),
-        // .ss_tdata_latch(ss_tdata_latch)
         );
     
     // RAM for tap
@@ -183,9 +161,9 @@ module fir_tb
         golden[0] = $fopen("y1.dat","r");
         golden[1] = $fopen("y2.dat","r");
         golden[2] = $fopen("y3.dat","r");
-	      coef_data[0]= $fopen("coef1.dat","r");
-	      coef_data[1]= $fopen("coef2.dat","r");
-	      coef_data[2]= $fopen("coef3.dat","r");
+        coef_data[0]= $fopen("coef1.dat","r");
+        coef_data[1]= $fopen("coef2.dat","r");
+        coef_data[2]= $fopen("coef3.dat","r");
         for(m=0;m< 400 ;m=m+1) begin
             input_data[0] = $fscanf(Din[0],"%d", Din_list[0][m]);
             golden_data[0] = $fscanf(golden[0],"%d", golden_list[0][m]);
