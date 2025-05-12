@@ -62,6 +62,20 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
+    wire [4:0] x_r_cnt;
+    wire [4:0] tap_cnt;
+    wire [4:0] x_w_cnt;
+    wire [(pDATA_WIDTH-1):0] y_cnt;
+    wire [(pDATA_WIDTH-1):0] x;
+    wire [(pDATA_WIDTH-1):0] h;
+    wire [(pDATA_WIDTH-1):0] mul;
+    wire [(pDATA_WIDTH-1):0] y;
+    wire [4:0] y_cyc_cnt;
+    wire [(pDATA_WIDTH-1):0] x_cnt;
+    wire [5:0] tap_proc_cnt;
+    wire [(pDATA_WIDTH-1):0] tap_num;
+    wire  [(pDATA_WIDTH-1):0] ss_tdata_latch;
+
     fir fir_DUT(
         .awready(awready),
         .wready(wready),
@@ -99,7 +113,21 @@ module fir_tb
         .data_Do(data_Do),
 
         .axis_clk(axis_clk),
-        .axis_rst_n(axis_rst_n)
+        .axis_rst_n(axis_rst_n),
+
+        .x_r_cnt(x_r_cnt),
+        .tap_cnt(tap_cnt),
+        .x_w_cnt(x_w_cnt),
+        .y_cnt(y_cnt),
+        .x(x),
+        .h(h),
+        .mul(mul),
+        .y(y),
+        .y_cyc_cnt(y_cyc_cnt),
+        .x_cnt(x_cnt),
+        .tap_proc_cnt(tap_proc_cnt),
+        .tap_num(tap_num),
+        .ss_tdata_latch(ss_tdata_latch)
         );
     
     // RAM for tap
@@ -237,7 +265,7 @@ reg second_end; // i.e second dataset done.
         wait(axis_rst_n==1);
         // delay 30 cycle to receive
         for(l=0;l <400;l=l+1) begin
-            sm(golden_list[0][l],l,30);
+            sm(golden_list[0][l],l,10);
         end
         // delay 1
         for(sm_l=0;sm_l <400;sm_l=sm_l+1) begin
@@ -504,4 +532,3 @@ integer ss_i,sm_i;
         end
     endtask
 endmodule
-
