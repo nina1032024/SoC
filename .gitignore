@@ -8,6 +8,7 @@
 *.str
 *.pptx
 *.pdf
+*.vcd
 
 *temp*
 *vivado*
