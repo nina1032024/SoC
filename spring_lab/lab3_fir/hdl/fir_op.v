@@ -28,7 +28,7 @@ module fir
     // AXI4-Stream master for y output, SM bus
         input   wire                     sm_tready,
         output  reg                      sm_tvalid,
-        output  reg  [(pDATA_WIDTH-1):0] sm_tdata,
+        output  wire  [(pDATA_WIDTH-1):0] sm_tdata,
         output  wire                     sm_tlast,
 
     // bram for tap RAM
@@ -47,22 +47,27 @@ module fir
 
     // global signal
         input   wire                     axis_clk,
-        input   wire                     axis_rst_n
-
+        input   wire                     axis_rst_n,
     // temp
-        // output [4:0] x_r_cnt,
-        // output [4:0] tap_cnt,
-        // output [4:0] x_w_cnt,
-        // output [(pDATA_WIDTH-1):0] y_cnt,
-        // output [(pDATA_WIDTH-1):0] x,
-        // output [(pDATA_WIDTH-1):0] h,
-        // output [(pDATA_WIDTH-1):0] mul,
-        // output [(pDATA_WIDTH-1):0] y,
-        // output [4:0] y_cyc_cnt,
-        // output [(pDATA_WIDTH-1):0] x_cnt,
-        // output [4:0] tap_proc_cnt,
-        // output [(pDATA_WIDTH-1):0] tap_num,
-        // output [(pDATA_WIDTH-1):0] ss_tdata_latch
+        output [4:0] x_r_cnt,
+        output [4:0] tap_cnt,
+        output [4:0] x_w_cnt,
+        output [(pDATA_WIDTH-1):0] y_cnt,
+        output [(pDATA_WIDTH-1):0] x,
+        output [(pDATA_WIDTH-1):0] h,
+        output [(pDATA_WIDTH-1):0] mul,
+        output [(pDATA_WIDTH-1):0] y,
+        output [4:0] y_cyc_cnt,
+        output [(pDATA_WIDTH-1):0] x_cnt,
+        output [4:0] tap_proc_cnt,
+        output [(pDATA_WIDTH-1):0] tap_num,
+        output [(pDATA_WIDTH-1):0] ss_tdata_latch,
+        output [(pDATA_WIDTH-1):0] sm_tdata_latch,
+        output x_buffer_full,
+        output y_buffer_full,
+        output x_buffer_count_en,
+        output [1:0]state,
+        output [5:0] x_cyc_cnt
 
     );
 
@@ -77,14 +82,14 @@ module fir
         localparam RIDLE  = 1'b0;
         localparam RVALID = 1'b1;
 
-        // ss bus state
-        localparam SS_IDLE = 2'b00;
-        localparam SS_WAIT = 2'b01;
-        localparam SS_PROC = 2'b10;
-        // sm bus state
-        localparam SM_IDLE = 2'b00;
-        localparam SM_WAIT_RES = 2'b01;
-        localparam SM_WAIT_BUS = 2'b10;
+        // // ss bus state
+        // localparam SS_IDLE = 2'b00;
+        // localparam SS_WAIT = 2'b01;
+        // localparam SS_PROC = 2'b10;
+        // // sm bus state
+        // localparam SM_IDLE = 2'b00;
+        // localparam SM_WAIT_RES = 2'b01;
+        // localparam SM_WAIT_BUS = 2'b10;
 
     // entire fir states 
     reg  [1:0] state, next_state;
@@ -123,7 +128,10 @@ module fir
     reg  [4:0] addr_cnt;
     reg  [5:0] tap_proc_cnt;
     reg  [(pDATA_WIDTH-1):0] ss_tdata_latch;
-    wire  [(pDATA_WIDTH-1):0] sm_tdata_latch;
+    reg  [(pDATA_WIDTH-1):0] sm_tdata_latch;
+    reg x_buffer_full;
+    reg y_buffer_full;
+    reg x_buffer_count_en;
 
     // core engine
     reg  [(pDATA_WIDTH-1):0] x;
@@ -243,8 +251,8 @@ module fir
         ap_ctrl[1] = (state == DONE) ? 1'b1 : 1'b0;
         ap_ctrl[2] = (state == IDLE) ? 1'b1 : 1'b0;
         ap_ctrl[3] = 1'b0;
-        ap_ctrl[4] = (state == CALC && tap_cnt == tap_num) ? 1'b1 : 1'b0;
-        ap_ctrl[5] = (state == CALC && y_cyc_cnt == tap_num) ? 1'b1 : 1'b0;
+        ap_ctrl[4] = (ss_tready) ? 1'b1 : 1'b0;
+        ap_ctrl[5] = (sm_tvalid) ? 1'b1 : 1'b0;
     end
 
 
@@ -289,13 +297,19 @@ module fir
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             tap_cnt <= 0;
-        end else if (state == IDLE) begin
+        end else if (state == IDLE || state == DONE) begin
             tap_cnt <= 0;
-        end else if (ss_tvalid && ss_tready) begin
-            tap_cnt <= 0;
+        end else if (tap_cnt == 0) begin
+            if(x_cnt == data_length) begin
+                tap_cnt <= tap_cnt + 1;
+            end else begin
+                tap_cnt <= (x_buffer_full) ? tap_cnt + 1 : tap_cnt; 
+            end
+        end else if(tap_cnt == tap_num - 1) begin
+            tap_cnt <= (y_buffer_full) ? tap_cnt : 0;
         end else begin
-            tap_cnt <=  tap_cnt + 1;
-        end 
+            tap_cnt <= tap_cnt + 1;
+        end
     end
 
     // bram signal
@@ -323,13 +337,15 @@ module fir
         end
     end
 
-    // bram for data ram signal
+    // data ram input
     always@* begin
         data_EN = 1'b1;
         if(state == CALC) begin
-            data_WE = (ss_tvalid && ss_tready) ? 4'b1111 : 4'b0000; 
-            data_Di = (ss_tvalid && ss_tready) ? ss_tdata_latch : 32'h00;
-            data_A  = (ss_tvalid && ss_tready) ? 4 * x_w_cnt : 4 * x_r_cnt;
+            data_WE = (tap_cnt == 0) ? 4'b1111 : 4'b0000; 
+            data_Di = ss_tdata_latch;
+            data_A  = (tap_cnt != 0) ? 
+            ((tap_cnt <= x_r_cnt) ? 4 * (x_r_cnt - tap_cnt) : 4 * (tap_num + x_r_cnt - tap_cnt))
+            : 4 * x_r_cnt;
         end else if(state == IDLE || state == DONE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
@@ -341,177 +357,81 @@ module fir
         end
     end
 
-// 2. address generator for core engine operation
-    // address generator for newly stored data (up Counter)
-    assign x_w_cnt_tmp = (ss_tready && ss_tvalid) ? 
-             ((x_w_cnt == tap_num - 1) ? 0 : (x_w_cnt + 1)) : 
-             x_w_cnt;
-
-    // address generator for reading out data (down Counter)
-    always @* begin
-        if(ss_tready && ss_tvalid) begin
-            x_r_cnt_tmp = x_w_cnt_tmp;
-        end else if (ss_state == SS_PROC) begin
-            if(x_r_cnt == 0) begin
-                x_r_cnt_tmp = tap_num - 1;
-            end else begin
-                x_r_cnt_tmp = x_r_cnt - 1;
-            end
+    always @(posedge axis_clk or negedge axis_rst_n) begin
+        if (!axis_rst_n) begin
+            x_r_cnt  <= 0;
         end else begin
-            x_r_cnt_tmp = x_w_cnt + 1;
+            x_r_cnt <=  ((state == CALC) && (tap_cnt == tap_num - 1)) ?
+                         (y_buffer_full ? x_r_cnt : ((x_r_cnt == tap_num - 1) ? 0 : x_r_cnt + 1))
+                         : x_r_cnt;
         end
     end
 
-    always@ (posedge axis_clk or negedge axis_rst_n) begin
+// 2. ss bus and input buffer
+    // x buffer: buffer before dataRAM input
+    always@(posedge axis_clk or negedge axis_rst_n) 
         if(!axis_rst_n) begin
-            x_w_cnt <= tap_num - 1;
-            x_r_cnt <= 0;
-        end else if(ap_ctrl[0] == 1)begin
-            x_w_cnt <= 0;
-            x_r_cnt <= 0;
-        end else begin 
-            x_w_cnt <= x_w_cnt_tmp;
-            x_r_cnt <= x_r_cnt_tmp;
-        end
-    end
-
-// 3. ss bus fsm
-    reg [4:0] x_cyc_cnt;
-    reg [4:0] y_cyc_cnt;
-    
-    always@* begin
-        if(state == IDLE)
-            tap_proc_cnt = 0;
-        else if (state == CALC)
-            tap_proc_cnt = (x_cnt < tap_num) ? ((x_cnt)) : ((tap_num - 1));
-        else 
-            tap_proc_cnt = 0;
-    end
-
-    always @ (posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            y_cyc_cnt <= 0;
-        end else if (state == IDLE) begin
-            y_cyc_cnt <= 0;
-        end else if (tap_cnt == 3) begin
-            y_cyc_cnt <= 0;
-        end else begin
-            y_cyc_cnt <= y_cyc_cnt + 1;
-        end 
-    end
-
-    always@* begin
-        case(ss_state) 
-            SS_IDLE: begin
-                if(awaddr == 12'h00 && wdata [0] == 1'b1 && awready && wready) begin
-                    next_ss_tready = 1;
-                    next_ss_state = SS_WAIT;
-                end else begin
-                    next_ss_tready = 0;
-                    next_ss_state = SS_IDLE;
-                end
-            end
-            SS_WAIT: begin
-                if(ss_tvalid) begin
-                    next_ss_tready  = 0;
-                    next_ss_state = SS_PROC;
-                end else begin
-                    next_ss_tready  = 1;
-                    next_ss_state = SS_WAIT;
-                end
-            end
-            SS_PROC: begin
-                if(tap_cnt == tap_num - 1) begin
-                    if(y_cnt == data_length - 1) begin
-                        next_ss_tready  = 0;
-                        next_ss_state = SS_IDLE;
-                    end else begin
-                        next_ss_tready  = 1;
-                        next_ss_state = SS_WAIT;
-                    end
-                end else begin
-                    next_ss_tready  = 0;
-                    next_ss_state = SS_PROC;
-                end
-            end
-            default: begin
-                next_ss_tready = 0;
-                next_ss_state = SS_IDLE;
-            end
-        endcase
-    end
-
-// 4. sm bus fsm
-    always@* begin
-        case(sm_state) 
-            SM_IDLE: begin
-                if(awaddr == 12'h00 && wdata [0] == 1'b1 && awready && wready) begin
-                    next_sm_tvalid = 0;
-                    next_sm_state = SM_WAIT_RES;
-                end else begin
-                    next_sm_tvalid = 0;
-                    next_sm_state = SM_IDLE;
-                end
-            end
-            SM_WAIT_RES: begin
-                if(y_cyc_cnt == tap_num - 1) begin
-                    next_sm_tvalid = 1;
-                    next_sm_state = SM_WAIT_BUS;
-                end else begin
-                    next_sm_tvalid  = 0;
-                    next_sm_state = SM_WAIT_RES;
-                end
-            end
-            SM_WAIT_BUS: begin
-                if(sm_tready) begin
-                    if(y_cnt == data_length - 1) begin
-                        next_sm_tvalid  = 0;
-                        next_sm_state = SM_IDLE;
-                    end else begin
-                        next_sm_tvalid  = 0;
-                        next_sm_state = SM_WAIT_RES;
-                    end
-                end else begin
-                    next_sm_tvalid  = 1;
-                    next_sm_state = SM_WAIT_BUS;
-                end
-            end
-            default: begin
-                next_sm_tvalid = 0;
-                next_sm_state = SM_IDLE;
-            end
-        endcase
-    end
-
-
-    always@(posedge axis_clk or negedge axis_rst_n) begin
-        if(!axis_rst_n) begin
-            ss_state     <= SS_IDLE;
-            sm_state     <= SM_IDLE;
-            ss_tready      <= 0;
             ss_tdata_latch <= 0;
-            sm_tvalid      <= 0;
-            sm_tdata       <= 32'h00;
+            x_buffer_full <= 0;
         end else if(state == IDLE) begin
-            ss_state     <= next_ss_state;
-            sm_state     <= next_sm_state;
-            ss_tready      <= next_ss_tready;
             ss_tdata_latch <= 0;
-            sm_tvalid      <= next_sm_tvalid;
-            sm_tdata       <= 32'h00;
+            x_buffer_full <= 0;
         end else begin
-            ss_state     <= next_ss_state;
-            sm_state     <= next_sm_state;
-            ss_tready      <= next_ss_tready;
-            ss_tdata_latch <= (ss_tvalid && ss_tready) ? ss_tdata : ss_tdata_latch;
-            sm_tvalid      <= next_sm_tvalid;
-            sm_tdata       <= sm_tdata_latch;
+            ss_tdata_latch <= (ss_tvalid && ss_tready && (~x_buffer_full)) ? ss_tdata : ss_tdata_latch; 
+            x_buffer_full  <= (ss_tvalid && ss_tready && ~x_buffer_full) ? 1 :
+                              (tap_cnt == 0)                             ? 0 : x_buffer_full;
         end
-    end
-    
-    assign sm_tdata_latch = (y_cyc_cnt == (tap_num - 1)) ? y : sm_tdata;
+        
+    // ss bus
+    always@(posedge axis_clk or negedge axis_rst_n)
+        if(!axis_rst_n) begin
+            ss_tready <= 0;
+        end else if(state == IDLE)begin
+            ss_tready <= 0;
+        end else begin
+            ss_tready <= (x_cnt != data_length && ss_tvalid && (~x_buffer_full) && (~ss_tready));
+        end
 
-// 5. count the valid y output
+// 3. sm bus and output buffer
+    // y buffer: buffer before output
+    assign sm_tdata = sm_tdata_latch;
+
+    always@(posedge axis_clk or negedge axis_rst_n) 
+        if(!axis_rst_n) begin
+            sm_tdata_latch <= 0;
+            y_buffer_full <= 0;
+        end else if(state == IDLE) begin
+            sm_tdata_latch <= 0;
+            y_buffer_full <= 0;
+        end else begin
+            sm_tdata_latch <= (tap_cnt == 3 && (~y_buffer_full) && x_buffer_count_en) ? y : sm_tdata_latch; 
+            y_buffer_full  <= (tap_cnt == 3 && (~y_buffer_full) && x_buffer_count_en) ? 1 :
+                             (y_buffer_full && sm_tvalid && sm_tready) ? 0 : y_buffer_full;
+        end
+
+    always@(posedge axis_clk or negedge axis_rst_n)
+        if (!axis_rst_n) begin   
+            x_buffer_count_en <= 0;
+        end else if(state == IDLE)begin
+            x_buffer_count_en <= 0;
+        end else begin
+            x_buffer_count_en <=  (tap_cnt == 3 ? 1 : x_buffer_count_en);
+        end
+        
+    // sm bus
+    always@(posedge axis_clk or negedge axis_rst_n)
+        if(!axis_rst_n) begin
+            sm_tvalid <= 0;
+        end else if(state == IDLE)begin
+            sm_tvalid <= 0;
+        end else begin
+            sm_tvalid <= (y_buffer_full && sm_tready && (~sm_tvalid));
+        end
+    
+    // sm_tlast flag
+    assign sm_tlast = (y_cnt == data_length);
+
+// 4. Input x data and output y number
     always@(posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
             x_cnt <= 0;
@@ -530,16 +450,32 @@ module fir
             y_cnt <= y_cnt;
         end
     end
-    
-    
-    assign sm_tlast = (y_cnt == data_length);
+
 //****************************************** data flow for axistream******************************************//
 //************************************************************************************************************//
 
 //************************************************************************************************************//
 //****************************************** core engine: convolution*****************************************//
+    // cycle counter
+    reg [5:0] x_cyc_cnt;
+    always@(posedge axis_clk or negedge axis_rst_n)
+        if(!axis_rst_n) begin
+            x_cyc_cnt <= 0;
+        end else if(state == IDLE) begin
+            x_cyc_cnt <= 0;
+        end else begin
+            if(tap_cnt == 3) begin
+                x_cyc_cnt <= 0;
+            end else if(x_cyc_cnt == tap_num - 1) begin
+                x_cyc_cnt <= x_cyc_cnt;
+            end else begin
+                x_cyc_cnt <= x_cyc_cnt + 1;
+            end
+        end
+
+    
     // multipler
-    assign x_tmp = (tap_cnt == 1) ? ss_tdata_latch : data_Do;
+    assign x_tmp = data_Do;
     assign h_tmp = tap_Do;
     assign mul_tmp = x * h;
 
@@ -551,6 +487,8 @@ module fir
             y <= 0;
         end else if (tap_cnt == 3) begin
             y <= mul;
+        end else if(x_cyc_cnt == tap_num - 1) begin
+            y <= y;
         end else begin
             y <= y + mul;
         end

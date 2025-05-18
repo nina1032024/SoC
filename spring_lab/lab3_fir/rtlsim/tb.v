@@ -62,19 +62,6 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
-    wire [4:0] x_r_cnt;
-    wire [4:0] tap_cnt;
-    wire [4:0] x_w_cnt;
-    wire [(pDATA_WIDTH-1):0] y_cnt;
-    wire [(pDATA_WIDTH-1):0] x;
-    wire [(pDATA_WIDTH-1):0] h;
-    wire [(pDATA_WIDTH-1):0] mul;
-    wire [(pDATA_WIDTH-1):0] y;
-    wire [4:0] y_cyc_cnt;
-    wire [(pDATA_WIDTH-1):0] x_cnt;
-    wire [5:0] tap_proc_cnt;
-    wire [(pDATA_WIDTH-1):0] tap_num;
-    wire  [(pDATA_WIDTH-1):0] ss_tdata_latch;
 
     fir fir_DUT(
         .awready(awready),
@@ -113,21 +100,7 @@ module fir_tb
         .data_Do(data_Do),
 
         .axis_clk(axis_clk),
-        .axis_rst_n(axis_rst_n),
-
-        .x_r_cnt(x_r_cnt),
-        .tap_cnt(tap_cnt),
-        .x_w_cnt(x_w_cnt),
-        .y_cnt(y_cnt),
-        .x(x),
-        .h(h),
-        .mul(mul),
-        .y(y),
-        .y_cyc_cnt(y_cyc_cnt),
-        .x_cnt(x_cnt),
-        .tap_proc_cnt(tap_proc_cnt),
-        .tap_num(tap_num),
-        .ss_tdata_latch(ss_tdata_latch)
+        .axis_rst_n(axis_rst_n)
         );
     
     // RAM for tap
@@ -189,9 +162,9 @@ module fir_tb
         golden[0] = $fopen("y1.dat","r");
         golden[1] = $fopen("y2.dat","r");
         golden[2] = $fopen("y3.dat","r");
-        coef_data[0]= $fopen("coef1.dat","r");
-        coef_data[1]= $fopen("coef2.dat","r");
-        coef_data[2]= $fopen("coef3.dat","r");
+	      coef_data[0]= $fopen("coef1.dat","r");
+	      coef_data[1]= $fopen("coef2.dat","r");
+	      coef_data[2]= $fopen("coef3.dat","r");
         for(m=0;m< 400 ;m=m+1) begin
             input_data[0] = $fscanf(Din[0],"%d", Din_list[0][m]);
             golden_data[0] = $fscanf(golden[0],"%d", golden_list[0][m]);
@@ -265,7 +238,7 @@ reg second_end; // i.e second dataset done.
         wait(axis_rst_n==1);
         // delay 30 cycle to receive
         for(l=0;l <400;l=l+1) begin
-            sm(golden_list[0][l],l,10);
+            sm(golden_list[0][l],l,30);
         end
         // delay 1
         for(sm_l=0;sm_l <400;sm_l=sm_l+1) begin
