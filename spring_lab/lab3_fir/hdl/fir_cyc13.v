@@ -1,6 +1,7 @@
 module fir
     #(  parameter pADDR_WIDTH = 12,
-        parameter pDATA_WIDTH = 32
+        parameter pDATA_WIDTH = 32,
+        parameter LOG_32 = 5
     )
     (
     // AXI4-Lite for configuration
@@ -25,7 +26,7 @@ module fir
         input   wire [(pDATA_WIDTH-1):0] ss_tdata,
         input   wire                     ss_tlast,
 
-    // AXI4-Stream master for y output, SM bus
+    // AXI4-Stream master for y_reg output, SM bus
         input   wire                     sm_tready,
         output  reg                      sm_tvalid,
         output  wire  [(pDATA_WIDTH-1):0] sm_tdata,
@@ -81,29 +82,25 @@ module fir
 
     // bram for tap ram
     reg [(pADDR_WIDTH-1):0] tap_A_w_r;
-    reg [8:0] tap_cnt;
+    reg [(LOG_32-1):0] tap_cnt;
 
     // data flow control: ss bus, sm bus, bram for data ram
-    reg  [(pDATA_WIDTH-1):0] x_cnt;
-    reg  [(pDATA_WIDTH-1):0] y_cnt;
-    reg  [4:0] addr_cnt;
-    reg  [4:0] flush_addr_cnt;
-    reg  [5:0] tap_proc_cnt;
-    reg  [(pDATA_WIDTH-1):0] ss_tdata_latch;
-    reg  [(pDATA_WIDTH-1):0] sm_tdata_latch;
+    reg [(pDATA_WIDTH-1):0] x_cnt;
+    reg [(pDATA_WIDTH-1):0] y_cnt;
+    reg [(LOG_32-1):0] addr_cnt;
+    reg [(LOG_32-1):0] flush_addr_cnt;
+    reg [(pDATA_WIDTH-1):0] ss_tdata_latch;
+    reg [(pDATA_WIDTH-1):0] sm_tdata_latch;
     reg x_buffer_full;
     reg y_buffer_full;
-    reg x_buffer_count_en;
+    reg is_first_data;
 
     // core engine
-    reg [5:0] x_cyc_cnt;
-    reg  [(pDATA_WIDTH-1):0] x;
-    reg  [(pDATA_WIDTH-1):0] h;
-    reg  [(pDATA_WIDTH-1):0] mul;
-    reg  [(pDATA_WIDTH-1):0] y;
-    wire [(pDATA_WIDTH-1):0] x_tmp;
-    wire [(pDATA_WIDTH-1):0] h_tmp;
-    wire [(pDATA_WIDTH-1):0] mul_tmp;
+    reg  [(LOG_32-1):0] y_cyc_cnt;
+    reg  [(pDATA_WIDTH-1):0] x_reg;
+    reg  [(pDATA_WIDTH-1):0] h_reg;
+    reg  [(pDATA_WIDTH-1):0] mul_reg;
+    reg  [(pDATA_WIDTH-1):0] y_reg;
 
 //************************************************************************************************************//
 //***************************** axi-lite interface : write channel, read channel *****************************//
@@ -263,11 +260,8 @@ module fir
         end else if (state == IDLE || state == DONE) begin
             tap_cnt <= 0;
         end else if (tap_cnt == 0) begin
-            if(x_cnt == data_length) begin
-                tap_cnt <= tap_cnt + 1;
-            end else begin
-                tap_cnt <= (x_buffer_full) ? tap_cnt + 1 : tap_cnt; 
-            end
+            tap_cnt <= (x_cnt == data_length) ? tap_cnt + 1 : 
+                       (x_buffer_full)        ? tap_cnt + 1 : tap_cnt;
         end else if(tap_cnt == tap_num - 1) begin
             tap_cnt <= (y_buffer_full) ? tap_cnt : 0;
         end else begin
@@ -307,8 +301,8 @@ module fir
             data_WE = (tap_cnt == 0) ? 4'b1111 : 4'b0000; 
             data_Di = ss_tdata_latch;
             data_A  = (tap_cnt != 0) ? 
-            ((tap_cnt <= addr_cnt) ? 4 * (addr_cnt - tap_cnt) : 4 * (tap_num + addr_cnt - tap_cnt))
-            : 4 * addr_cnt;
+                    ((tap_cnt <= addr_cnt) ? 4 * (addr_cnt - tap_cnt) : 4 * (tap_num + addr_cnt - tap_cnt))
+                    : 4 * addr_cnt;
         end else if(state == IDLE || state == DONE) begin
             data_WE = 4'b1111;
             data_Di = 32'h00;
@@ -325,20 +319,20 @@ module fir
             addr_cnt  <= 0;
         end else begin
             addr_cnt <=  ((state == CALC) && (tap_cnt == tap_num - 1)) ?
-                         (y_buffer_full ? addr_cnt : ((addr_cnt == tap_num - 1) ? 0 : addr_cnt + 1))
-                         : addr_cnt;
+                        (y_buffer_full ? addr_cnt : ((addr_cnt == tap_num - 1) ? 0 : addr_cnt + 1))
+                        : addr_cnt;
         end
     end
 
 // 2. ss bus and input buffer
-    // x buffer: buffer before dataRAM input
+    // x_reg buffer: buffer before dataRAM input
     always@(posedge axis_clk or negedge axis_rst_n) 
         if(!axis_rst_n) begin
             ss_tdata_latch <= 0;
-            x_buffer_full <= 0;
+            x_buffer_full  <= 0;
         end else if(state == IDLE) begin
             ss_tdata_latch <= 0;
-            x_buffer_full <= 0;
+            x_buffer_full  <= 0;
         end else begin
             ss_tdata_latch <= (ss_tvalid && ss_tready && (~x_buffer_full)) ? ss_tdata : ss_tdata_latch; 
             x_buffer_full  <= (ss_tvalid && ss_tready && ~x_buffer_full) ? 1 :
@@ -356,7 +350,7 @@ module fir
         end
 
 // 3. sm bus and output buffer
-    // y buffer: buffer before output
+    // y_reg buffer: buffer before output
     assign sm_tdata = sm_tdata_latch;
 
     always@(posedge axis_clk or negedge axis_rst_n) 
@@ -367,18 +361,18 @@ module fir
             sm_tdata_latch <= 0;
             y_buffer_full <= 0;
         end else begin
-            sm_tdata_latch <= (tap_cnt == 3 && (~y_buffer_full) && x_buffer_count_en) ? y : sm_tdata_latch; 
-            y_buffer_full  <= (tap_cnt == 3 && (~y_buffer_full) && x_buffer_count_en) ? 1 :
-                             (y_buffer_full && sm_tvalid && sm_tready) ? 0 : y_buffer_full;
+            sm_tdata_latch <= (tap_cnt == 3 && (~y_buffer_full) && is_first_data) ? y_reg : sm_tdata_latch; 
+            y_buffer_full  <= (tap_cnt == 3 && (~y_buffer_full) && is_first_data) ? 1 :
+                            (y_buffer_full && sm_tvalid && sm_tready) ? 0 : y_buffer_full;
         end
 
     always@(posedge axis_clk or negedge axis_rst_n)
         if (!axis_rst_n) begin   
-            x_buffer_count_en <= 0;
+            is_first_data <= 0;
         end else if(state == IDLE)begin
-            x_buffer_count_en <= 0;
+            is_first_data <= 0;
         end else begin
-            x_buffer_count_en <=  (tap_cnt == 3 ? 1 : x_buffer_count_en);
+            is_first_data <=  (tap_cnt == 3 ? 1 : is_first_data);
         end
         
     // sm bus
@@ -419,56 +413,50 @@ module fir
 
 //************************************************************************************************************//
 //****************************************** core engine: convolution*****************************************//
-    // cycle counter
+    // y cycle counter
     always@(posedge axis_clk or negedge axis_rst_n)
         if(!axis_rst_n) begin
-            x_cyc_cnt <= 0;
+            y_cyc_cnt <= 0;
         end else if(state == IDLE) begin
-            x_cyc_cnt <= 0;
+            y_cyc_cnt <= 0;
         end else begin
             if(tap_cnt == 3) begin
-                x_cyc_cnt <= 0;
-            end else if(x_cyc_cnt == tap_num - 1) begin
-                x_cyc_cnt <= x_cyc_cnt;
+                y_cyc_cnt <= 0;
+            end else if(y_cyc_cnt == tap_num - 1) begin
+                y_cyc_cnt <= y_cyc_cnt;
             end else begin
-                x_cyc_cnt <= x_cyc_cnt + 1;
+                y_cyc_cnt <= y_cyc_cnt + 1;
             end
         end
-
-    
-    // multipler
-    assign x_tmp = data_Do;
-    assign h_tmp = tap_Do;
-    assign mul_tmp = x * h;
 
     // adder
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            y <=  0;
+            y_reg <=  0;
         end else if(state == IDLE) begin
-            y <= 0;
+            y_reg <= 0;
         end else if (tap_cnt == 3) begin
-            y <= mul;
-        end else if(x_cyc_cnt == tap_num - 1) begin
-            y <= y;
+            y_reg <= mul_reg;
+        end else if(y_cyc_cnt == tap_num - 1) begin
+            y_reg <= y_reg;
         end else begin
-            y <= y + mul;
+            y_reg <= y_reg + mul_reg;
         end
     end
     
     always@ (posedge axis_clk or negedge axis_rst_n) begin
         if(!axis_rst_n) begin
-            x   <= 0;
-            h   <= 0;
-            mul <= 0;
+            x_reg   <= 0;
+            h_reg   <= 0;
+            mul_reg <= 0;
         end else if(state == IDLE) begin
-            x   <= 0;
-            h   <= 0;
-            mul <= 0;
+            x_reg   <= 0;
+            h_reg   <= 0;
+            mul_reg <= 0;
         end else begin
-            x   <= x_tmp;
-            h   <= h_tmp;
-            mul <= mul_tmp;
+            x_reg   <= data_Do;
+            h_reg   <= tap_Do;
+            mul_reg <= x_reg * h_reg;
         end
     end
 //****************************************** core engine: convolution*****************************************//
