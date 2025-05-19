@@ -47,27 +47,27 @@ module fir
 
     // global signal
         input   wire                     axis_clk,
-        input   wire                     axis_rst_n,
+        input   wire                     axis_rst_n
     // temp
-        output [4:0] x_r_cnt,
-        output [4:0] tap_cnt,
-        output [4:0] x_w_cnt,
-        output [(pDATA_WIDTH-1):0] y_cnt,
-        output [(pDATA_WIDTH-1):0] x,
-        output [(pDATA_WIDTH-1):0] h,
-        output [(pDATA_WIDTH-1):0] mul,
-        output [(pDATA_WIDTH-1):0] y,
-        output [4:0] y_cyc_cnt,
-        output [(pDATA_WIDTH-1):0] x_cnt,
-        output [4:0] tap_proc_cnt,
-        output [(pDATA_WIDTH-1):0] tap_num,
-        output [(pDATA_WIDTH-1):0] ss_tdata_latch,
-        output [(pDATA_WIDTH-1):0] sm_tdata_latch,
-        output x_buffer_full,
-        output y_buffer_full,
-        output x_buffer_count_en,
-        output [1:0]state,
-        output [5:0] x_cyc_cnt
+        // output [4:0] x_r_cnt,
+        // output [4:0] tap_cnt,
+        // output [4:0] x_w_cnt,
+        // output [(pDATA_WIDTH-1):0] y_cnt,
+        // output [(pDATA_WIDTH-1):0] x,
+        // output [(pDATA_WIDTH-1):0] h,
+        // output [(pDATA_WIDTH-1):0] mul,
+        // output [(pDATA_WIDTH-1):0] y,
+        // output [4:0] y_cyc_cnt,
+        // output [(pDATA_WIDTH-1):0] x_cnt,
+        // output [4:0] tap_proc_cnt,
+        // output [(pDATA_WIDTH-1):0] tap_num,
+        // output [(pDATA_WIDTH-1):0] ss_tdata_latch,
+        // output [(pDATA_WIDTH-1):0] sm_tdata_latch,
+        // output x_buffer_full,
+        // output y_buffer_full,
+        // output x_buffer_count_en,
+        // output [1:0]state,
+        // output [5:0] x_cyc_cnt
 
     );
 
@@ -81,16 +81,7 @@ module fir
         // rvalid states
         localparam RIDLE  = 1'b0;
         localparam RVALID = 1'b1;
-
-        // // ss bus state
-        // localparam SS_IDLE = 2'b00;
-        // localparam SS_WAIT = 2'b01;
-        // localparam SS_PROC = 2'b10;
-        // // sm bus state
-        // localparam SM_IDLE = 2'b00;
-        // localparam SM_WAIT_RES = 2'b01;
-        // localparam SM_WAIT_BUS = 2'b10;
-
+        
     // entire fir states 
     reg  [1:0] state, next_state;
 
@@ -134,6 +125,7 @@ module fir
     reg x_buffer_count_en;
 
     // core engine
+    reg [5:0] x_cyc_cnt;
     reg  [(pDATA_WIDTH-1):0] x;
     reg  [(pDATA_WIDTH-1):0] h;
     reg  [(pDATA_WIDTH-1):0] mul;
@@ -222,7 +214,7 @@ module fir
                 end
             end
             CALC : begin
-                if(sm_tlast && !ss_tlast) begin                                        // transfer last data of y
+                if(sm_tlast) begin                                        // transfer last data of y
                     next_state = DONE;
                 end else begin
                     next_state = CALC;
@@ -389,7 +381,7 @@ module fir
         end else if(state == IDLE)begin
             ss_tready <= 0;
         end else begin
-            ss_tready <= (x_cnt != data_length && ss_tvalid && (~x_buffer_full) && (~ss_tready));
+            ss_tready <= (x_cnt != data_length && (~x_buffer_full)); 
         end
 
 // 3. sm bus and output buffer
@@ -425,7 +417,7 @@ module fir
         end else if(state == IDLE)begin
             sm_tvalid <= 0;
         end else begin
-            sm_tvalid <= (y_buffer_full && sm_tready && (~sm_tvalid));
+            sm_tvalid <= (y_buffer_full);
         end
     
     // sm_tlast flag
@@ -457,7 +449,6 @@ module fir
 //************************************************************************************************************//
 //****************************************** core engine: convolution*****************************************//
     // cycle counter
-    reg [5:0] x_cyc_cnt;
     always@(posedge axis_clk or negedge axis_rst_n)
         if(!axis_rst_n) begin
             x_cyc_cnt <= 0;
