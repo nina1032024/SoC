@@ -1,0 +1,3 @@
+rm -rf ./gdb.debug ./gdbwave.debug
+rm -f *counter_la_fir.vcd *counter_la_fir.hex
+rm -f *.s *counter_la_fir.o *.i *counter_la_fir.out *.map
