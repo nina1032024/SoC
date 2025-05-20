@@ -182,7 +182,7 @@ module fir
                 end
             end
             CALC : begin
-                if(sm_tlast) begin                                        // transfer last data of y
+                if(sm_tlast) begin                                                     // transfer last data of y
                     next_state = DONE;
                 end else begin
                     next_state = CALC;
@@ -346,7 +346,7 @@ module fir
         end else if(state == IDLE)begin
             ss_tready <= 0;
         end else begin
-            ss_tready <= (x_cnt != data_length && ss_tvalid && (~x_buffer_full) && (~ss_tready));
+            ss_tready <= (~ss_tvalid) ? (x_cnt != data_length && (~x_buffer_full)) : (~ss_tready);
         end
 
 // 3. sm bus and output buffer
@@ -382,7 +382,7 @@ module fir
         end else if(state == IDLE)begin
             sm_tvalid <= 0;
         end else begin
-            sm_tvalid <= (y_buffer_full && sm_tready && (~sm_tvalid));
+            sm_tvalid <= (~sm_tready) ? (y_buffer_full): (~sm_tvalid);
         end
     
     // sm_tlast flag
@@ -413,7 +413,7 @@ module fir
 
 //************************************************************************************************************//
 //****************************************** core engine: convolution*****************************************//
-    // y cycle counter
+    // y cycle counter: valid y+mul cycle
     always@(posedge axis_clk or negedge axis_rst_n)
         if(!axis_rst_n) begin
             y_cyc_cnt <= 0;

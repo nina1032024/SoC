@@ -62,6 +62,12 @@ module fir_tb
     wire [(pADDR_WIDTH-1):0] data_A;
     wire [(pDATA_WIDTH-1):0] data_Do;
 
+    wire flush_done;
+    wire [4:0] flush_addr_cnt;
+    wire [1:0] state;
+
+    // wire [4:0] flush_addr_cnt;
+    // wire [1:0] state;
     // wire [4:0] x_r_cnt;
     // wire [4:0] tap_cnt;
     // wire [4:0] x_w_cnt;
@@ -122,7 +128,14 @@ module fir_tb
         .data_Do(data_Do),
 
         .axis_clk(axis_clk),
-        .axis_rst_n(axis_rst_n)
+        .axis_rst_n(axis_rst_n),
+
+        .flush_done(flush_done),
+        .flush_addr_cnt(flush_addr_cnt),
+        .state(state)
+
+        // .flush_addr_cnt(flush_addr_cnt),
+        // .state(state)
 
         // .x_r_cnt(x_r_cnt),
         // .tap_cnt(tap_cnt),
