@@ -6,6 +6,7 @@ bram512x128.v
 bram128x128.v
 bram32x128.v
 butterfly.v
+divN.v
 // add_11_overflow.v
 // add_12_overflow.v
 // add_13_overflow.v

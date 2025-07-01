@@ -83,7 +83,7 @@ initial begin
     // decode NTT mode
     @(posedge clk)
     mode = 8'b00000010;
-    @(posedge clk) decode = 1; mode = 8'b00001010;
+    @(posedge clk) decode = 1; mode = 8'b00001011;
     @(posedge clk) decode = 0;
 
     //coeffcient input
@@ -134,40 +134,65 @@ initial begin
     end
 end
 
-    // ================= WAIT FOR RESULT ================= //
-    initial begin
-        @(posedge rstn);  
-        wait(sw_vld == 1);
-        $display("Start receiving output from kernel...");
+// ================= WAIT FOR RESULT + AUTOCHECK ================= //
+reg done;
+integer expected_val;
+reg [15:0] expected_words[7:0];
+reg [127:0] expected_dat;
+integer idx;
 
-        while (sw_lst == 0) begin
-            if (sw_vld) begin
-                @(posedge clk);
-                sw_rdy <= 1;
-                // @(posedge clk);
-                $display("Receive data: %h", sw_dat); 
-                @(posedge clk);
-                sw_rdy <= 0;
+initial begin
+    done = 0;
+    expected_val = 0;
 
-                repeat (7) @(posedge clk);
-            end else begin
-                @(posedge clk);
-            end
-        end
+    @(posedge rstn);  
+    wait(sw_vld == 1);
+    $display("Start receiving output from kernel...");
 
-        $display("last data: %h", sw_dat);
+    while (!done) begin
         if (sw_vld) begin
-            @(posedge clk);
             sw_rdy <= 1;
-            // @(posedge clk);
-            $display("Receive last data: %h", sw_dat);
+
+            for (idx = 0; idx < 8; idx = idx + 1) begin
+                expected_words[idx] = expected_val + idx;
+            end
+            expected_dat = {
+                expected_words[7], expected_words[6],
+                expected_words[5], expected_words[4],
+                expected_words[3], expected_words[2],
+                expected_words[1], expected_words[0]
+            };
+
+            $display("Received data : %h | Correct answer: %h ", sw_dat, expected_dat);
+
+            if (sw_dat !== expected_dat) begin
+                $display("Mismatch at %0d", expected_val);
+                $fatal;
+            end
+
+            expected_val = expected_val + 8;
+
+            if (sw_lst) begin
+                $display("✅ Last data detected. Autocheck passed.");
+                done = 1;
+            end
+
             @(posedge clk);
             sw_rdy <= 0;
-        end
 
-        $display("All data received.");
-        $finish;
+            repeat (7) @(posedge clk);
+        end else begin
+            @(posedge clk);
+        end
     end
+
+    $display("✅ All data received and verified.");
+    $finish;
+end
+
+
+
+
 
 // ================= TIMEOUT CONTROL ================= //
 initial begin
