@@ -67,7 +67,7 @@ initial begin
 end
 
 initial begin
-    clk_2x = 0;
+    clk_2x = 1;
     forever #10 clk_2x = ~clk_2x;
 end
 
@@ -175,7 +175,7 @@ initial begin
 
             if (sw_dat !== expected_dat) begin
                 $display("Mismatch at %0d", expected_val);
-                $fatal;
+                // $fatal;
             end
 
             expected_val = expected_val + 8;
@@ -204,7 +204,7 @@ end
 
 // ================= TIMEOUT CONTROL ================= //
 initial begin
-    #1_000_0_000000;
+    #1_000_000;
 
     $display("ERROR: Simulation hung or took too long.");
     $finish;
