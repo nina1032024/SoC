@@ -361,7 +361,6 @@ module kernel_NTT
     assign BPE2_o_rdy = 1;
     assign BPE3_o_rdy = 1;
     assign BPE4_o_rdy = 1;
-
     
 //==================clk_2x, two phase=======================//
     reg phase; 
@@ -392,7 +391,7 @@ module kernel_NTT
 
     always @(posedge clk or negedge rstn) begin
         if (!rstn) begin
-            W0 <= 0;  W1 <= 0;  W2 <= 0;  W3 <= 0;  W4 <= 0;  W5 <= 0;  W6 <= 0;  W7 <= 0;
+            W1 <= 0;  W2 <= 0;  W3 <= 0;  W4 <= 0;  W5 <= 0;  W6 <= 0;  W7 <= 0;
             W8 <= 0;  W9 <= 0;  W10 <= 0; W11 <= 0; W12 <= 0; W13 <= 0; W14 <= 0; W15 <= 0;
             W16 <= 0; W17 <= 0; W18 <= 0; W19 <= 0; W20 <= 0; W21 <= 0; W22 <= 0; W23 <= 0;
             W24 <= 0; W25 <= 0; W26 <= 0; W27 <= 0; W28 <= 0; W29 <= 0; W30 <= 0; W31 <= 0;
@@ -466,6 +465,10 @@ module kernel_NTT
             W63 <= (coef_vld && coef_rdy && coef_idx == 62) ? coef_dat : W63;
         end
     end                           
+
+
+
+    
 
 //====================================== butterfly stage 1 ======================================// 
 //============= stage 1 =============// 
@@ -1804,9 +1807,11 @@ end
 // Read: sram 128*128 (NTT)                         // 
 // Write:                                           // 
 //=================== stream out ===================// 
-    localparam FETCH = 1'b0;
-    localparam WAIT_OUT = 1'b1;
-    reg sm_state, next_sm_state;
+    localparam FETCH = 2'b00;
+    localparam WAIT_OUT = 2'b01;
+    localparam WAIT_LAST = 2'b10;
+    localparam DONE = 2'b11;
+    reg [1:0] sm_state, next_sm_state;
     reg next_sm_o_en, next_sw_vld;
     reg [6:0] sm_o_sram_addr_128_tmp;
     reg [6:0] next_sm_o_sram_addr_128_tmp;
@@ -1815,7 +1820,7 @@ end
         case(sm_state)
             FETCH: begin
                 next_sm_o_en = 0;
-                next_sm_state = WAIT_OUT;
+                next_sm_state = (sw_lst) ? WAIT_LAST :WAIT_OUT ;
                 next_sw_vld = 1;
                 next_sm_o_sram_addr_128_tmp = sm_o_sram_addr_128_tmp;
             end
@@ -1831,6 +1836,25 @@ end
                     next_sw_vld = 1;
                     next_sm_o_sram_addr_128_tmp = sm_o_sram_addr_128_tmp;
                 end
+            end
+            WAIT_LAST: begin
+                if(sw_rdy) begin
+                    next_sm_o_en = 0;
+                    next_sm_state = DONE;
+                    next_sw_vld = 0;
+                    next_sm_o_sram_addr_128_tmp = 0;
+                end else begin
+                    next_sm_o_en = 0;
+                    next_sm_state = WAIT_LAST;
+                    next_sw_vld = 1;
+                    next_sm_o_sram_addr_128_tmp = sm_o_sram_addr_128_tmp;
+                end
+            end
+            DONE: begin
+                next_sm_o_en = 0;
+                next_sm_state = DONE;
+                next_sw_vld = 0;
+                next_sm_o_sram_addr_128_tmp = 0;
             end
             default: begin
                 next_sm_o_en = 0;
@@ -1849,15 +1873,14 @@ end
             sm_o_sram_addr_128_tmp <= 0;
             sw_dat <= 0;
         end else begin
-            sm_o_sram_en_128 <= (stage == OUT) ? next_sm_o_en : sm_o_sram_en_128;
-            sm_state <= (stage == OUT) ? next_sm_state : sm_state;
-            sw_vld <= (stage == OUT) ? next_sw_vld : sw_vld;
-            sm_o_sram_addr_128_tmp <= (stage == OUT) ? next_sm_o_sram_addr_128_tmp : sm_o_sram_addr_128_tmp;
-            sw_dat <= (sm_o_sram_en_128) ? sram_dout_128 : sw_dat;
+            sm_o_sram_en_128 <= (stage == OUT || stage == IDLE) ? next_sm_o_en : sm_o_sram_en_128;
+            sm_state <= (stage == OUT || stage == IDLE) ? next_sm_state : sm_state;
+            sw_vld <= (stage == OUT || stage == IDLE) ? next_sw_vld : sw_vld;
+            sm_o_sram_addr_128_tmp <= (stage == OUT || stage == IDLE) ? next_sm_o_sram_addr_128_tmp : sm_o_sram_addr_128_tmp;
+            sw_dat <= ((stage == OUT || stage == IDLE) && sm_o_sram_en_128) ? sram_dout_128 : sw_dat;
         end
     end 
 
-    // assign sw_dat = (sm_o_sram_en_128) ? sram_dout_128 : sw_dat;
     assign sm_o_sram_addr_128 = sm_o_sram_addr_128_tmp * 4;
     assign sw_lst = (sm_o_sram_addr_128_tmp == 127);
 //====================================== sram signal controller ======================================// 
