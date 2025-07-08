@@ -56,7 +56,7 @@ kernel_top top (
 
 // ubuntu
 initial begin
-  $dumpfile("test_kernel_NTT.vcd");    
+  $dumpfile("test_kernel_NTT_1.vcd");    
   $dumpvars(0, test_kernel_NTT);  
 end
 
@@ -175,7 +175,7 @@ initial begin
 
             if (sw_dat !== expected_dat) begin
                 $display("Mismatch at %0d", expected_val);
-                // $fatal;
+                $fatal;
             end
 
             expected_val = expected_val + 8;

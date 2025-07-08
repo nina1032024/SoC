@@ -105,15 +105,16 @@ module kernel_NTT
     output  reg[12:0]   sram_addr_32
 
 );
-    localparam S1 = 4'b0000;
-    localparam S2 = 4'b0001;
-    localparam S3 = 4'b0010;
-    localparam S4 = 4'b0011;
-    localparam S5 = 4'b0100;
-    localparam S6 = 4'b0101;
-    localparam S7_to_10 = 4'b0110;
-    localparam OUT = 4'b0111;
-    localparam IDLE = 4'b1000;
+    localparam MODE_SWITCH = 4'b0000;
+    localparam S1          = 4'b0001;
+    localparam S2          = 4'b0010;
+    localparam S3          = 4'b0011;
+    localparam S4          = 4'b0100;
+    localparam S5          = 4'b0101;
+    localparam S6          = 4'b0110;
+    localparam S7_to_10    = 4'b0111;
+    localparam OUT         = 4'b1000;
+    localparam IDLE        = 4'b1001;
 
     localparam NTT = 2'b10;
     localparam iNTT = 2'b11;
@@ -123,6 +124,22 @@ module kernel_NTT
 
 //============shared resources mux signal============//
     reg [(pDATA_WIDTH-1):0] sram_dout_128_buf, sram_dout_512_buf;
+    // s0 (ld dat) : sram 512
+    reg [(pDATA_WIDTH_2x-1):0] s0_i_sram_din_512_tmp;
+    reg [25:0] s0_i_sram_addr_512_tmp;
+    reg [3:0]s0_i_WE_512;
+    reg s0_i_sram_en_512;
+    reg [(pDATA_WIDTH-1):0] s0_i_sram_din_512;
+    reg [12:0]  s0_i_sram_addr_512;
+
+    // s1 input : sram 512
+    reg [(pDATA_WIDTH_2x-1):0] s1_i_sram_din_512_tmp;
+    reg [25:0] s1_i_sram_addr_512_tmp;
+    reg [3:0]s1_i_WE_512;
+    reg s1_i_sram_en_512;
+    wire [(pDATA_WIDTH-1):0] s1_i_sram_din_512;
+    wire [12:0]  s1_i_sram_addr_512;
+
     // s1 output : sram 128
     reg [(pDATA_WIDTH_2x-1):0] s1_o_sram_din_128_tmp;
     reg [25:0] s1_o_sram_addr_128_tmp;
@@ -245,6 +262,27 @@ module kernel_NTT
     wire [12:0] sm_o_sram_addr_128;
     reg [(pDATA_WIDTH-1):0] sm_o_sram_din_128;
 
+    // mode switch
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE1_ain;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE1_bin;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE1_coef;
+    reg ms_BPE1_i_vld, nxt_ms_BPE1_i_vld;
+
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE2_ain;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE2_bin;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE2_coef;
+    reg ms_BPE2_i_vld, nxt_ms_BPE2_i_vld;
+
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE3_ain;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE3_bin;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE3_coef;
+    reg ms_BPE3_i_vld, nxt_ms_BPE3_i_vld;
+
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE4_ain;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE4_bin;
+    reg  [(pDATA_WIDTH-1):0]  ms_BPE4_coef;
+    reg ms_BPE4_i_vld, nxt_ms_BPE4_i_vld;
+
     // s1 : BPE1
     reg  [(pDATA_WIDTH-1):0] s1_BPE1_ain;
     reg  [(pDATA_WIDTH-1):0] s1_BPE1_bin;
@@ -306,19 +344,20 @@ module kernel_NTT
     reg s10_BPE4_i_vld;
 
 // =============coef=================//
-    reg [127:0] W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29, W30, W31;
+    wire [127:0] W0;
+    reg [127:0] W1, W2, W3, W4, W5, W6, W7, W8, W9, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29, W30, W31;
     reg [127:0] W32, W33, W34, W35, W36, W37, W38, W39, W40, W41, W42, W43, W44, W45, W46, W47, W48, W49, W50, W51, W52, W53, W54, W55, W56, W57, W58, W59, W60, W61, W62, W63;
 
 //======================================== general declarations ======================================== // 
 //============ kernel operation mode ============//
-    reg [7:0] mode_state;
-    always @(posedge clk or negedge rstn) begin
-        if (!rstn) begin
-            mode_state <= 0;
-        end else begin
-            mode_state <= (decode) ? mode : mode_state;
-        end
-    end
+    // reg [7:0] mode_state;
+    // always @(posedge clk or negedge rstn) begin
+    //     if (!rstn) begin
+    //         mode_state <= 0;
+    //     end else begin
+    //         mode_state <= (decode) ? mode : mode_state;
+    //     end
+    // end
 
 //=============== kernel state ===============//
     localparam KER_IDLE = 1'b0;
@@ -385,10 +424,8 @@ module kernel_NTT
 
     assign next_coef_idx = (coef_vld && coef_rdy) ? ((coef_idx == 6'd63) ? coef_idx : coef_idx + 1) : coef_idx;
 
-    always @* begin
-        W0 = (coef_vld && coef_rdy && next_coef_idx == 0) ? coef_dat : W0;
-    end
-
+    assign W0 = (coef_idx == 0) ? coef_dat : W0;
+    
     always @(posedge clk or negedge rstn) begin
         if (!rstn) begin
             W1 <= 0;  W2 <= 0;  W3 <= 0;  W4 <= 0;  W5 <= 0;  W6 <= 0;  W7 <= 0;
@@ -400,119 +437,257 @@ module kernel_NTT
             W48 <= 0; W49 <= 0; W50 <= 0; W51 <= 0; W52 <= 0; W53 <= 0; W54 <= 0; W55 <= 0;
             W56 <= 0; W57 <= 0; W58 <= 0; W59 <= 0; W60 <= 0; W61 <= 0; W62 <= 0; W63 <= 0;
         end else begin
-            W1 <=  (coef_vld && coef_rdy && coef_idx == 0) ? coef_dat : W1;
-            W2 <=  (coef_vld && coef_rdy && coef_idx == 1) ? coef_dat : W2;
-            W3 <=  (coef_vld && coef_rdy && coef_idx == 2) ? coef_dat : W3;
-            W4 <=  (coef_vld && coef_rdy && coef_idx == 3) ? coef_dat : W4;
-            W5 <=  (coef_vld && coef_rdy && coef_idx == 4) ? coef_dat : W5;
-            W6 <=  (coef_vld && coef_rdy && coef_idx == 5) ? coef_dat : W6;
-            W7 <=  (coef_vld && coef_rdy && coef_idx == 6) ? coef_dat : W7;
-            W8 <=  (coef_vld && coef_rdy && coef_idx == 7) ? coef_dat : W8;
-            W9 <=  (coef_vld && coef_rdy && coef_idx == 8) ? coef_dat : W9;
-            W10 <= (coef_vld && coef_rdy && coef_idx == 9) ? coef_dat : W10;
-            W11 <= (coef_vld && coef_rdy && coef_idx == 10) ? coef_dat : W11;
-            W12 <= (coef_vld && coef_rdy && coef_idx == 11) ? coef_dat : W12;
-            W13 <= (coef_vld && coef_rdy && coef_idx == 12) ? coef_dat : W13;
-            W14 <= (coef_vld && coef_rdy && coef_idx == 13) ? coef_dat : W14;
-            W15 <= (coef_vld && coef_rdy && coef_idx == 14) ? coef_dat : W15;
-            W16 <= (coef_vld && coef_rdy && coef_idx == 15) ? coef_dat : W16;
-            W17 <= (coef_vld && coef_rdy && coef_idx == 16) ? coef_dat : W17;
-            W18 <= (coef_vld && coef_rdy && coef_idx == 17) ? coef_dat : W18;
-            W19 <= (coef_vld && coef_rdy && coef_idx == 18) ? coef_dat : W19;
-            W20 <= (coef_vld && coef_rdy && coef_idx == 19) ? coef_dat : W20;
-            W21 <= (coef_vld && coef_rdy && coef_idx == 20) ? coef_dat : W21;
-            W22 <= (coef_vld && coef_rdy && coef_idx == 21) ? coef_dat : W22;
-            W23 <= (coef_vld && coef_rdy && coef_idx == 22) ? coef_dat : W23;
-            W24 <= (coef_vld && coef_rdy && coef_idx == 23) ? coef_dat : W24;
-            W25 <= (coef_vld && coef_rdy && coef_idx == 24) ? coef_dat : W25;
-            W26 <= (coef_vld && coef_rdy && coef_idx == 25) ? coef_dat : W26;
-            W27 <= (coef_vld && coef_rdy && coef_idx == 26) ? coef_dat : W27;
-            W28 <= (coef_vld && coef_rdy && coef_idx == 27) ? coef_dat : W28;
-            W29 <= (coef_vld && coef_rdy && coef_idx == 28) ? coef_dat : W29;
-            W30 <= (coef_vld && coef_rdy && coef_idx == 29) ? coef_dat : W30;
-            W31 <= (coef_vld && coef_rdy && coef_idx == 30) ? coef_dat : W31;
-            W32 <= (coef_vld && coef_rdy && coef_idx == 31) ? coef_dat : W32;
-            W33 <= (coef_vld && coef_rdy && coef_idx == 32) ? coef_dat : W33;
-            W34 <= (coef_vld && coef_rdy && coef_idx == 33) ? coef_dat : W34;
-            W35 <= (coef_vld && coef_rdy && coef_idx == 34) ? coef_dat : W35;
-            W36 <= (coef_vld && coef_rdy && coef_idx == 35) ? coef_dat : W36;
-            W37 <= (coef_vld && coef_rdy && coef_idx == 36) ? coef_dat : W37;
-            W38 <= (coef_vld && coef_rdy && coef_idx == 37) ? coef_dat : W38;
-            W39 <= (coef_vld && coef_rdy && coef_idx == 38) ? coef_dat : W39;
-            W40 <= (coef_vld && coef_rdy && coef_idx == 39) ? coef_dat : W40;
-            W41 <= (coef_vld && coef_rdy && coef_idx == 40) ? coef_dat : W41;
-            W42 <= (coef_vld && coef_rdy && coef_idx == 41) ? coef_dat : W42;
-            W43 <= (coef_vld && coef_rdy && coef_idx == 42) ? coef_dat : W43;
-            W44 <= (coef_vld && coef_rdy && coef_idx == 43) ? coef_dat : W44;
-            W45 <= (coef_vld && coef_rdy && coef_idx == 44) ? coef_dat : W45;
-            W46 <= (coef_vld && coef_rdy && coef_idx == 45) ? coef_dat : W46;
-            W47 <= (coef_vld && coef_rdy && coef_idx == 46) ? coef_dat : W47;
-            W48 <= (coef_vld && coef_rdy && coef_idx == 47) ? coef_dat : W48;
-            W49 <= (coef_vld && coef_rdy && coef_idx == 48) ? coef_dat : W49;
-            W50 <= (coef_vld && coef_rdy && coef_idx == 49) ? coef_dat : W50;
-            W51 <= (coef_vld && coef_rdy && coef_idx == 50) ? coef_dat : W51;
-            W52 <= (coef_vld && coef_rdy && coef_idx == 51) ? coef_dat : W52;
-            W53 <= (coef_vld && coef_rdy && coef_idx == 52) ? coef_dat : W53;
-            W54 <= (coef_vld && coef_rdy && coef_idx == 53) ? coef_dat : W54;
-            W55 <= (coef_vld && coef_rdy && coef_idx == 54) ? coef_dat : W55;
-            W56 <= (coef_vld && coef_rdy && coef_idx == 55) ? coef_dat : W56;
-            W57 <= (coef_vld && coef_rdy && coef_idx == 56) ? coef_dat : W57;
-            W58 <= (coef_vld && coef_rdy && coef_idx == 57) ? coef_dat : W58;
-            W59 <= (coef_vld && coef_rdy && coef_idx == 58) ? coef_dat : W59;
-            W60 <= (coef_vld && coef_rdy && coef_idx == 59) ? coef_dat : W60;
-            W61 <= (coef_vld && coef_rdy && coef_idx == 60) ? coef_dat : W61;
-            W62 <= (coef_vld && coef_rdy && coef_idx == 61) ? coef_dat : W62;
-            W63 <= (coef_vld && coef_rdy && coef_idx == 62) ? coef_dat : W63;
+            W1 <=  (coef_vld && coef_rdy && coef_idx ==  1) ? coef_dat : W1;
+            W2 <=  (coef_vld && coef_rdy && coef_idx ==  2) ? coef_dat : W2;
+            W3 <=  (coef_vld && coef_rdy && coef_idx ==  3) ? coef_dat : W3;
+            W4 <=  (coef_vld && coef_rdy && coef_idx ==  4) ? coef_dat : W4;
+            W5 <=  (coef_vld && coef_rdy && coef_idx ==  5) ? coef_dat : W5;
+            W6 <=  (coef_vld && coef_rdy && coef_idx ==  6) ? coef_dat : W6;
+            W7 <=  (coef_vld && coef_rdy && coef_idx ==  7) ? coef_dat : W7;
+            W8 <=  (coef_vld && coef_rdy && coef_idx ==  8) ? coef_dat : W8;
+            W9 <=  (coef_vld && coef_rdy && coef_idx ==  9) ? coef_dat : W9;
+            W10 <= (coef_vld && coef_rdy && coef_idx == 10) ? coef_dat : W10;
+            W11 <= (coef_vld && coef_rdy && coef_idx == 11) ? coef_dat : W11;
+            W12 <= (coef_vld && coef_rdy && coef_idx == 12) ? coef_dat : W12;
+            W13 <= (coef_vld && coef_rdy && coef_idx == 13) ? coef_dat : W13;
+            W14 <= (coef_vld && coef_rdy && coef_idx == 14) ? coef_dat : W14;
+            W15 <= (coef_vld && coef_rdy && coef_idx == 15) ? coef_dat : W15;
+            W16 <= (coef_vld && coef_rdy && coef_idx == 16) ? coef_dat : W16;
+            W17 <= (coef_vld && coef_rdy && coef_idx == 17) ? coef_dat : W17;
+            W18 <= (coef_vld && coef_rdy && coef_idx == 18) ? coef_dat : W18;
+            W19 <= (coef_vld && coef_rdy && coef_idx == 19) ? coef_dat : W19;
+            W20 <= (coef_vld && coef_rdy && coef_idx == 20) ? coef_dat : W20;
+            W21 <= (coef_vld && coef_rdy && coef_idx == 21) ? coef_dat : W21;
+            W22 <= (coef_vld && coef_rdy && coef_idx == 22) ? coef_dat : W22;
+            W23 <= (coef_vld && coef_rdy && coef_idx == 23) ? coef_dat : W23;
+            W24 <= (coef_vld && coef_rdy && coef_idx == 24) ? coef_dat : W24;
+            W25 <= (coef_vld && coef_rdy && coef_idx == 25) ? coef_dat : W25;
+            W26 <= (coef_vld && coef_rdy && coef_idx == 26) ? coef_dat : W26;
+            W27 <= (coef_vld && coef_rdy && coef_idx == 27) ? coef_dat : W27;
+            W28 <= (coef_vld && coef_rdy && coef_idx == 28) ? coef_dat : W28;
+            W29 <= (coef_vld && coef_rdy && coef_idx == 29) ? coef_dat : W29;
+            W30 <= (coef_vld && coef_rdy && coef_idx == 30) ? coef_dat : W30;
+            W31 <= (coef_vld && coef_rdy && coef_idx == 31) ? coef_dat : W31;
+            W32 <= (coef_vld && coef_rdy && coef_idx == 32) ? coef_dat : W32;
+            W33 <= (coef_vld && coef_rdy && coef_idx == 33) ? coef_dat : W33;
+            W34 <= (coef_vld && coef_rdy && coef_idx == 34) ? coef_dat : W34;
+            W35 <= (coef_vld && coef_rdy && coef_idx == 35) ? coef_dat : W35;
+            W36 <= (coef_vld && coef_rdy && coef_idx == 36) ? coef_dat : W36;
+            W37 <= (coef_vld && coef_rdy && coef_idx == 37) ? coef_dat : W37;
+            W38 <= (coef_vld && coef_rdy && coef_idx == 38) ? coef_dat : W38;
+            W39 <= (coef_vld && coef_rdy && coef_idx == 39) ? coef_dat : W39;
+            W40 <= (coef_vld && coef_rdy && coef_idx == 40) ? coef_dat : W40;
+            W41 <= (coef_vld && coef_rdy && coef_idx == 41) ? coef_dat : W41;
+            W42 <= (coef_vld && coef_rdy && coef_idx == 42) ? coef_dat : W42;
+            W43 <= (coef_vld && coef_rdy && coef_idx == 43) ? coef_dat : W43;
+            W44 <= (coef_vld && coef_rdy && coef_idx == 44) ? coef_dat : W44;
+            W45 <= (coef_vld && coef_rdy && coef_idx == 45) ? coef_dat : W45;
+            W46 <= (coef_vld && coef_rdy && coef_idx == 46) ? coef_dat : W46;
+            W47 <= (coef_vld && coef_rdy && coef_idx == 47) ? coef_dat : W47;
+            W48 <= (coef_vld && coef_rdy && coef_idx == 48) ? coef_dat : W48;
+            W49 <= (coef_vld && coef_rdy && coef_idx == 49) ? coef_dat : W49;
+            W50 <= (coef_vld && coef_rdy && coef_idx == 50) ? coef_dat : W50;
+            W51 <= (coef_vld && coef_rdy && coef_idx == 51) ? coef_dat : W51;
+            W52 <= (coef_vld && coef_rdy && coef_idx == 52) ? coef_dat : W52;
+            W53 <= (coef_vld && coef_rdy && coef_idx == 53) ? coef_dat : W53;
+            W54 <= (coef_vld && coef_rdy && coef_idx == 54) ? coef_dat : W54;
+            W55 <= (coef_vld && coef_rdy && coef_idx == 55) ? coef_dat : W55;
+            W56 <= (coef_vld && coef_rdy && coef_idx == 56) ? coef_dat : W56;
+            W57 <= (coef_vld && coef_rdy && coef_idx == 57) ? coef_dat : W57;
+            W58 <= (coef_vld && coef_rdy && coef_idx == 58) ? coef_dat : W58;
+            W59 <= (coef_vld && coef_rdy && coef_idx == 59) ? coef_dat : W59;
+            W60 <= (coef_vld && coef_rdy && coef_idx == 60) ? coef_dat : W60;
+            W61 <= (coef_vld && coef_rdy && coef_idx == 61) ? coef_dat : W61;
+            W62 <= (coef_vld && coef_rdy && coef_idx == 62) ? coef_dat : W62;
+            W63 <= (coef_vld && coef_rdy && coef_idx == 63) ? coef_dat : W63;
         end
-    end                           
+    end                                                
 
+//==================================== butterfly stage switch to NTT ===================================//
+//============= stage 0 ============== // 
+// Mode switch: BPE1、BPE2、BPE3、BPE4 // 
+// Read: ld_dat                       // 
+// Write: sram 512 * 128              // 
+//============= stage 0 ==============// 
 
+//============ switch mode for BPE ============ //
+    localparam FIRST_VLD = 2'b00;
+    localparam WAIT_22C = 2'b01;
+    localparam DONE_MS = 2'b10;
 
+    reg [1:0] state_vld, nxt_state_vld;
+    reg [4:0] count_to_sec_vld, nxt_count_to_sec_vld; //22cyc
+
+    always@* 
+        case(state_vld)
+            FIRST_VLD: begin
+                if(decode) begin
+                    nxt_ms_BPE1_i_vld = 1; 
+                    nxt_ms_BPE2_i_vld = 1; 
+                    nxt_ms_BPE3_i_vld = 1; 
+                    nxt_ms_BPE4_i_vld = 1; 
+                    nxt_count_to_sec_vld = count_to_sec_vld + 1;
+                    nxt_state_vld = WAIT_22C;
+                end else begin
+                    nxt_ms_BPE1_i_vld = 0; 
+                    nxt_ms_BPE2_i_vld = 0; 
+                    nxt_ms_BPE3_i_vld = 0; 
+                    nxt_ms_BPE4_i_vld = 0; 
+                    nxt_count_to_sec_vld = count_to_sec_vld;
+                    nxt_state_vld = FIRST_VLD;
+                end
+            end
+            WAIT_22C: begin
+                if(count_to_sec_vld == 21) begin  // or BPE_rdy?
+                    nxt_ms_BPE1_i_vld = 1; 
+                    nxt_ms_BPE2_i_vld = 1; 
+                    nxt_ms_BPE3_i_vld = 1; 
+                    nxt_ms_BPE4_i_vld = 1; 
+                    nxt_count_to_sec_vld = 0;
+                    nxt_state_vld = DONE_MS;
+                end else begin
+                    nxt_ms_BPE1_i_vld = 0; 
+                    nxt_ms_BPE2_i_vld = 0; 
+                    nxt_ms_BPE3_i_vld = 0; 
+                    nxt_ms_BPE4_i_vld = 0; 
+                    nxt_count_to_sec_vld = count_to_sec_vld + 1;
+                    nxt_state_vld = WAIT_22C;
+                end
+            end
+            DONE_MS: begin
+                nxt_ms_BPE1_i_vld = 0; 
+                nxt_ms_BPE2_i_vld = 0; 
+                nxt_ms_BPE3_i_vld = 0; 
+                nxt_ms_BPE4_i_vld = 0; 
+                nxt_count_to_sec_vld = 0;
+                nxt_state_vld = DONE_MS;
+            end
+            default: begin
+                nxt_ms_BPE1_i_vld = 0; 
+                nxt_ms_BPE2_i_vld = 0; 
+                nxt_ms_BPE3_i_vld = 0; 
+                nxt_ms_BPE4_i_vld = 0; 
+                nxt_count_to_sec_vld = 0;
+                nxt_state_vld = DONE_MS;
+            end
+        endcase
+
+    // first vld, counter to second vld 
+    always @(posedge clk or negedge rstn)
+        if(!rstn) begin
+            ms_BPE1_ain   <= 0;
+            ms_BPE1_bin   <= 0;
+            ms_BPE1_coef  <= 0;
+            ms_BPE1_i_vld <= 0; 
+
+            ms_BPE2_ain   <= 0;
+            ms_BPE2_bin   <= 0;
+            ms_BPE2_coef  <= 0;
+            ms_BPE2_i_vld <= 0; 
+
+            ms_BPE3_ain   <= 0;
+            ms_BPE3_bin   <= 0;
+            ms_BPE3_coef  <= 0;
+            ms_BPE3_i_vld <= 0; 
+
+            ms_BPE4_ain   <= 0;
+            ms_BPE4_bin   <= 0;
+            ms_BPE4_coef  <= 0;
+            ms_BPE4_i_vld <= 0; 
+
+            count_to_sec_vld <= 0;
+            state_vld <= FIRST_VLD;
+        end else begin
+            ms_BPE1_ain   <= 0;
+            ms_BPE1_bin   <= 0;
+            ms_BPE1_coef  <= 0;
+            ms_BPE1_i_vld <= nxt_ms_BPE1_i_vld; 
+
+            ms_BPE2_ain   <= 0;
+            ms_BPE2_bin   <= 0;
+            ms_BPE2_coef  <= 0;
+            ms_BPE2_i_vld <= nxt_ms_BPE2_i_vld; 
+
+            ms_BPE3_ain   <= 0;
+            ms_BPE3_bin   <= 0;
+            ms_BPE3_coef  <= 0;
+            ms_BPE3_i_vld <= nxt_ms_BPE3_i_vld; 
+
+            ms_BPE4_ain   <= 0;
+            ms_BPE4_bin   <= 0;
+            ms_BPE4_coef  <= 0;
+            ms_BPE4_i_vld <= nxt_ms_BPE4_i_vld; 
+
+            count_to_sec_vld <= nxt_count_to_sec_vld;
+            state_vld <= nxt_state_vld;
+        end
+
+//================= store s1 input data to sram==============//
+    wire [12:0] s0_addr;
+
+    reg [7:0] s0_i_cnt;             
+
+    always@(posedge clk or negedge rstn) 
+        if(!rstn) begin
+            s0_i_cnt <= 0;
+        end else begin
+            s0_i_cnt <= (ld_vld && ld_rdy) ? 
+                        ((s0_i_cnt == 8'd128) ? 0 : s0_i_cnt + 1) : s0_i_cnt;
+        end 
     
+    assign s0_addr = 4* s0_i_cnt;
+
+    always@(posedge clk or negedge rstn) begin
+        if(!rstn) begin
+            s0_i_sram_en_512 <= 0;
+            s0_i_WE_512 <= 0;
+            s0_i_sram_addr_512 <= 0;
+            s0_i_sram_din_512 <= 0;
+        end else begin
+            s0_i_sram_en_512 <= (ld_vld && ld_rdy);
+            s0_i_WE_512 <= {4{(ld_vld && ld_rdy)}};
+            s0_i_sram_addr_512 <= (ld_vld && ld_rdy) ? s0_addr : s0_i_sram_addr_512; //要想一下
+            s0_i_sram_din_512 <= (ld_vld && ld_rdy) ? ld_dat : s0_i_sram_din_512;
+        end
+    end
 
 //====================================== butterfly stage 1 ======================================// 
 //============= stage 1 =============// 
 // Arithmetic unit: BPE1             // 
-// Read: ld_dat                      // 
+// Read: sram 512 * 128              // 
 // Write: sram 128 * 128             // 
 //============= stage 1 =============// 
 
 //============= Get s1 input data ===========//
-    reg [7:0] s1_i_cnt;             // 0~1023
+    reg [6:0] s1_i_cnt;          
 
     always@(posedge clk or negedge rstn) 
         if(!rstn) begin
             s1_i_cnt <= 0;
         end else begin
-            s1_i_cnt <= (ld_vld && ld_rdy) ? 
-                        ((s1_i_cnt == 8'd128) ? 0 : s1_i_cnt + 1) : s1_i_cnt;
+            s1_i_cnt <= (stage == S1) ? ((s1_i_cnt == 8'd65) ? s1_i_cnt : s1_i_cnt + 1) : s1_i_cnt;
         end 
     
 //============= input to BPE1(data, coefficient) ===========//
-    reg [(pDATA_WIDTH-1):0] s1_coef;   //W0 = {w7, w6, w5, w4, w3, w2, w1, w0}
-    
-    always@(posedge clk or negedge rstn) begin
-        if(!rstn) begin
-            s1_BPE1_ain <= 0;
-            s1_BPE1_bin <= 0;
-            s1_BPE1_coef <= 0;
-            s1_BPE1_i_vld <= 0;
-        end else begin
-            s1_BPE1_ain <= (ld_vld && ld_rdy && s1_i_cnt[0] == 1'b0) ? ld_dat : s1_BPE1_ain;
-            s1_BPE1_bin <= (ld_vld && ld_rdy && s1_i_cnt[0] == 1'b1) ? ld_dat : s1_BPE1_bin;
-            s1_BPE1_coef <= (ld_vld && ld_rdy && s1_i_cnt[0] == 1'b1) ? {8{W0[15:0]}} : s1_BPE1_coef;
-            s1_BPE1_i_vld <= (ld_vld && ld_rdy && s1_i_cnt[0] == 1'b1) ? 1 : 0;
-        end 
-    end
+    wire [12:0] s1_i_addr_1, s1_i_addr_2;
 
-    always@(posedge clk or negedge rstn) begin
-        if(!rstn) begin
-            s1_coef <= 0;
-        end else begin
-            s1_coef <= (coef_vld && coef_rdy) ? coef_dat : s1_coef;
-        end 
-    end
+    assign s1_i_addr_1 = 4 * (2* s1_i_cnt);
+    assign s1_i_addr_2 = 4 * (2 * s1_i_cnt + 1'd1);
 
+    always@* begin
+        s1_i_sram_addr_512_tmp [25:13] = (stage == S1 && s1_i_cnt <= 64) ? s1_i_addr_2 : s1_i_sram_addr_512_tmp;
+        s1_i_sram_addr_512_tmp [12:0] = (stage == S1 && s1_i_cnt <= 64) ? s1_i_addr_1 : s1_i_sram_addr_512_tmp;
+        s1_i_sram_en_512 = (stage == S1 && s1_i_cnt <= 64);
+    end 
+
+    assign s1_i_sram_addr_512 = (!phase) ? s1_i_sram_addr_512_tmp[25:13]: s1_i_sram_addr_512_tmp[12:0];
+
+    always@* begin
+        s1_BPE1_ain = (phase && s1_i_cnt >= 1 && s1_i_cnt <= 64) ? sram_dout_512_buf : s1_BPE1_ain;
+        s1_BPE1_bin = (!phase && s1_i_cnt >= 1 && s1_i_cnt <= 64) ? sram_dout_512_buf : s1_BPE1_bin;
+        s1_BPE1_i_vld = (!phase && s1_i_cnt >= 1 && s1_i_cnt <= 64) ? 1 : 0;
+        s1_BPE1_coef = (!phase && s1_i_cnt >= 1 && s1_i_cnt <= 64) ? {8{W0[15:0]}} : s1_BPE1_coef;
+    end
 
 //============= output to bram 128===========//
     reg [6:0] s1_addr; 
@@ -1721,7 +1896,7 @@ end
             s10_o_tmp_a <= 0;
             s10_o_tmp_b <= 0;
         end else begin
-            case(mode_state[1:0])
+            case(mode[1:0])
             NTT: begin
                 s10_o_tmp_a <= (stage == S7_to_10 && s10_o_cnt <= 7'd64 && BPE4_o_vld && BPE4_o_rdy) ?
                             {BPE4_bout[63:48], BPE4_aout[63:48], BPE4_bout[47:32], BPE4_aout[47:32], BPE4_bout[31:16], BPE4_aout[31:16], BPE4_bout[15:0], BPE4_aout[15:0]}: s10_o_tmp_a;
@@ -1749,7 +1924,7 @@ end
         .in_A(BPE4_aout),
         .clk(clk),
         .rst_n(rstn),
-        .in_valid(BPE4_o_vld && mode_state[1:0] == iNTT),
+        .in_valid(BPE4_o_vld && mode[1:0] == iNTT),
         .result_int(aout_iNTT),
         .out_valid(o_vld1_iNTT)
     );
@@ -1759,7 +1934,7 @@ end
         .in_A(BPE4_bout),
         .clk(clk),
         .rst_n(rstn),
-        .in_valid(BPE4_o_vld && mode_state[1:0] == iNTT),
+        .in_valid(BPE4_o_vld && mode[1:0] == iNTT),
         .result_int(bout_iNTT),
         .out_valid(o_vld2_iNTT)
     );
@@ -1776,7 +1951,7 @@ end
     wire [6:0]temp;
     assign temp = (s10_o_cnt-1) << 1;
     always@* 
-        case(mode_state[1:0]) 
+        case(mode[1:0]) 
             NTT:begin
                 s10_o_sram_din_128_tmp [255:128] = (stage == S7_to_10 && s10_o_cnt >= 1'd1 && s10_o_cnt <= 7'd64) ? {s10_o_tmp_b[127:0]} : s10_o_sram_din_128_tmp[255:128];
                 s10_o_sram_din_128_tmp [127:0] = (stage == S7_to_10  && s10_o_cnt >= 1'd1 && s10_o_cnt <= 7'd64) ? {s10_o_tmp_a[127:0]} : s10_o_sram_din_128_tmp[127:0];
@@ -1883,10 +2058,7 @@ end
 
     assign sm_o_sram_addr_128 = sm_o_sram_addr_128_tmp * 4;
     assign sw_lst = (sm_o_sram_addr_128_tmp == 127);
-//====================================== sram signal controller ======================================// 
-
-// ============ sram 512 * 128 ============ //
-    
+//====================================== sram signal controller ======================================//     
     always @(posedge clk_2x or negedge rstn) begin
         if(!rstn) begin
             sram_dout_128_buf <= 0;
@@ -1899,24 +2071,64 @@ end
 
     always @(*) begin
         case (stage)
+            // notification for mode switch and store s1 data in sram 512
+            MODE_SWITCH: begin
+                // BPE1 (mode switch)
+                BPE1_ain   = ms_BPE1_ain;
+                BPE1_bin   = ms_BPE1_bin;
+                BPE1_coef  = ms_BPE1_coef;
+                BPE1_i_vld = ms_BPE1_i_vld;
+                
+                // BPE2 (mode switch)
+                BPE2_ain   = ms_BPE2_ain;
+                BPE2_bin   = ms_BPE2_bin;
+                BPE2_coef  = ms_BPE2_coef;
+                BPE2_i_vld = ms_BPE2_i_vld;
+
+                // BPE3 (mode switch)
+                BPE3_ain   = ms_BPE3_ain;
+                BPE3_bin   = ms_BPE3_bin;
+                BPE3_coef  = ms_BPE3_coef;
+                BPE3_i_vld = ms_BPE3_i_vld;
+
+                // BPE4 (mode switch)
+                BPE4_ain   = ms_BPE4_ain;
+                BPE4_bin   = ms_BPE4_bin;
+                BPE4_coef  = ms_BPE4_coef;
+                BPE4_i_vld = ms_BPE4_i_vld;
+
+                // sram 512*128 (write)
+                sram_en_512   = s0_i_sram_en_512;
+                WE_512        = s0_i_WE_512;
+                sram_addr_512 = s0_i_sram_addr_512;
+                sram_din_512  = s0_i_sram_din_512;
+                // sram 128*128
+                sram_en_128   = 0;
+                WE_128        = 0;
+                sram_addr_128 = 0;
+                sram_din_128  = 0;
+
+                next_stage = (s0_i_cnt == 8'd128 && s0_i_sram_en_512) ? S1 : MODE_SWITCH;
+            end
             S1: begin
+                // sram 512*512 (read)
+                sram_en_512   = s1_i_sram_en_512;
+                WE_512        = s1_i_WE_512;
+                sram_addr_512 = s1_i_sram_addr_512;
+                sram_din_512  = s1_i_sram_din_512;
+                
                 // sram 128*128 (write)
                 sram_en_128   = s1_o_sram_en_128;
                 WE_128        = s1_o_WE_128;
                 sram_addr_128 = s1_o_sram_addr_128;
                 sram_din_128  = s1_o_sram_din_128;
                 next_stage = (s1_o_cnt == 7'd64 && s1_o_sram_en_128) ? S2 : S1;
+
                 // BPE1
                 BPE1_ain   = s1_BPE1_ain;
                 BPE1_bin   = s1_BPE1_bin;
                 BPE1_coef  = s1_BPE1_coef;
                 BPE1_i_vld = s1_BPE1_i_vld;
-
-                // sram 512*128 
-                sram_en_512   = 0;
-                WE_512        = 4'b0000;
-                sram_addr_512 = 0;
-                sram_din_512  = 0;
 
                 // BPE2 
                 BPE2_ain   = 0;
@@ -2148,8 +2360,8 @@ end
                 BPE4_coef  = s10_BPE4_coef;
                 BPE4_i_vld = s10_BPE4_i_vld;
 
-                next_stage = (mode_state[1:0] == NTT && s10_o_sram_en_128 && s10_o_cnt == 7'd64 || 
-                              mode_state[1:0] == iNTT && s10_div_o_cnt == 7'd64) ? OUT : S7_to_10;
+                next_stage = (mode[1:0] == NTT && s10_o_sram_en_128 && s10_o_cnt == 7'd64 || 
+                              mode[1:0] == iNTT && s10_div_o_cnt == 7'd64) ? OUT : S7_to_10;
             end
             OUT: begin
                 // sram 128*128 (read)
@@ -2230,7 +2442,7 @@ end
 
     always @ (posedge clk or negedge rstn) begin
         if(!rstn) begin
-            stage <= S1;
+            stage <= MODE_SWITCH;
         end else begin
             stage <= next_stage;
         end
